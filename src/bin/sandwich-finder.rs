@@ -1,26 +1,49 @@
-use std::{collections::HashMap, fmt::Debug, str::FromStr};
+use std::{collections::{HashMap, VecDeque}, fmt::Debug, net::SocketAddr, str::FromStr, sync::{Arc, Mutex}};
+use axum::{extract::{ws::{Message, WebSocket}, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Json, Router};
 use dashmap::DashMap;
 use futures::{SinkExt, StreamExt};
+use serde::Serialize;
 
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{account::ReadableAccount, address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount}, bs58, commitment_config::CommitmentConfig, instruction::{AccountMeta, Instruction}, pubkey::Pubkey};
+use tokio::sync::{broadcast, mpsc};
 use yellowstone_grpc_client::GeyserGrpcBuilder;
 use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequestFilterAccounts, SubscribeRequestPing, SubscribeUpdateTransactionInfo}, prelude::{InnerInstruction, InnerInstructions, SubscribeRequest, SubscribeRequestFilterBlocks, TransactionStatusMeta}, tonic::transport::Endpoint};
 
 const RAYDIUM_PUBKEY: Pubkey = Pubkey::from_str_const("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
 
+#[derive(Clone, Serialize)]
 pub struct Swap {
-    outer_program: Option<Pubkey>,
-    program: Pubkey,
-    amm: Pubkey,
-    signer: Pubkey,
-    subject: Pubkey,
-    input_mint: Pubkey,
-    output_mint: Pubkey,
+    outer_program: Option<String>,
+    program: String,
+    amm: String,
+    signer: String,
+    subject: String,
+    input_mint: String,
+    output_mint: String,
     input_amount: u64,
     output_amount: u64,
     order: u64,
     sig: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Sandwich {
+    slot: u64,
+    frontrun: Swap,
+    victim: Swap,
+    backrun: Swap,
+}
+
+impl Sandwich {
+    pub fn new(slot: u64, frontrun: Swap, victim: Swap, backrun: Swap) -> Self {
+        Self {
+            slot,
+            frontrun,
+            victim,
+            backrun,
+        }
+    }
 }
 
 impl Debug for Swap {
@@ -48,6 +71,12 @@ pub struct DecompiledTransaction {
     swaps: Vec<Swap>,
     payer: Pubkey,
     order: u64,
+}
+
+#[derive(Clone)]
+struct AppState {
+    message_history: Arc<Mutex<VecDeque<Sandwich>>>,
+    sender: broadcast::Sender<Sandwich>,
 }
 
 fn pubkey_from_slice(slice: &[u8]) -> Pubkey {
@@ -168,12 +197,12 @@ async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &RpcClie
                             let recv_inner_ix = &inner_ix.instructions[1];
                             swaps.push(Swap {
                                 outer_program: None,
-                                program: ix.program_id,
-                                amm: ix.accounts[1].pubkey,
-                                signer: account_keys[0],
-                                subject: account_keys[send_inner_ix.accounts[2] as usize],
-                                input_mint: find_transferred_token(send_inner_ix, meta).unwrap().0,
-                                output_mint: find_transferred_token(recv_inner_ix, meta).unwrap().0,
+                                program: ix.program_id.to_string(),
+                                amm: ix.accounts[1].pubkey.to_string(),
+                                signer: account_keys[0].to_string(),
+                                subject: account_keys[send_inner_ix.accounts[2] as usize].to_string(),
+                                input_mint: find_transferred_token(send_inner_ix, meta).unwrap().0.to_string(),
+                                output_mint: find_transferred_token(recv_inner_ix, meta).unwrap().0.to_string(),
                                 input_amount: u64::from_le_bytes(send_inner_ix.data[1..9].try_into().expect("slice with incorrect length")),
                                 output_amount: u64::from_le_bytes(recv_inner_ix.data[1..9].try_into().expect("slice with incorrect length")),
                                 sig: sig.clone(),
@@ -190,13 +219,13 @@ async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &RpcClie
                                 let send_inner_ix = &inner_ix.instructions[j + 1];
                                 let recv_inner_ix = &inner_ix.instructions[j + 2];
                                 swaps.push(Swap {
-                                    outer_program: Some(ix.program_id),
-                                    program: program_id,
-                                    amm: account_keys[inner.accounts[1] as usize],
-                                    signer: account_keys[0],
-                                    subject: account_keys[send_inner_ix.accounts[2] as usize],
-                                    input_mint: find_transferred_token(send_inner_ix, meta).unwrap().0,
-                                    output_mint: find_transferred_token(recv_inner_ix, meta).unwrap().0,
+                                    outer_program: Some(ix.program_id.to_string()),
+                                    program: program_id.to_string(),
+                                    amm: account_keys[inner.accounts[1] as usize].to_string(),
+                                    signer: account_keys[0].to_string(),
+                                    subject: account_keys[send_inner_ix.accounts[2] as usize].to_string(),
+                                    input_mint: find_transferred_token(send_inner_ix, meta).unwrap().0.to_string(),
+                                    output_mint: find_transferred_token(recv_inner_ix, meta).unwrap().0.to_string(),
                                     input_amount: u64::from_le_bytes(send_inner_ix.data[1..9].try_into().expect("slice with incorrect length")),
                                     output_amount: u64::from_le_bytes(recv_inner_ix.data[1..9].try_into().expect("slice with incorrect length")),
                                     sig: sig.clone(),
@@ -257,8 +286,7 @@ fn is_valid_sandwich(s0: &Swap, s1: &Swap, s2: &Swap) -> bool {
     true
 }
 
-#[tokio::main]
-async fn main() {
+async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
     let rpc_url = "http://127.0.0.1:6969";
     let grpc_url = "http://127.0.0.1:10000";
     let rpc_client = RpcClient::new_with_commitment(rpc_url.to_string(), CommitmentConfig::processed());
@@ -328,10 +356,10 @@ async fn main() {
                 // 6. a wrapper program is present in the 1st and 3rd txs and are the same
 
                 // group swaps by amm
-                let mut amm_swaps: HashMap<Pubkey, Vec<&Swap>> = HashMap::new();
+                let mut amm_swaps: HashMap<String, Vec<&Swap>> = HashMap::new();
                 block_txs.iter().for_each(|tx| {
                     tx.swaps.iter().for_each(|swap| {
-                        let swaps = amm_swaps.entry(swap.amm).or_insert(Vec::new());
+                        let swaps = amm_swaps.entry(swap.amm.clone()).or_insert(Vec::new());
                         swaps.push(swap);
                     });
                 });
@@ -342,9 +370,9 @@ async fn main() {
                         return;
                     }
                     // within the group, further group by direction (input token)
-                    let mut input_swaps: HashMap<Pubkey, Vec<&Swap>> = HashMap::new();
+                    let mut input_swaps: HashMap<String, Vec<&Swap>> = HashMap::new();
                     swaps.iter().for_each(|swap| {
-                        let input_swaps = input_swaps.entry(swap.input_mint).or_insert(Vec::new());
+                        let input_swaps = input_swaps.entry(swap.input_mint.clone()).or_insert(Vec::new());
                         input_swaps.push(swap);
                     });
                     // bail out if there's not exactly 2 directions
@@ -362,7 +390,15 @@ async fn main() {
                                 let s1 = dir0.1[j];
                                 let s2 = dir1.1[k];
                                 if is_valid_sandwich(s0, s1, s2) {
-                                    println!("found sandwich: {:?}", (s0, s1, s2));
+                                    // println!("found sandwich: {:?}", (s0, s1, s2));
+                                    let sender = sender.clone();
+                                    let s0 = s0.clone();
+                                    let s1 = s1.clone();
+                                    let s2 = s2.clone();
+                                    let slot = block.slot;
+                                    tokio::spawn(async move {
+                                        sender.send(Sandwich::new(slot, s0, s1, s2)).await.unwrap();
+                                    });
                                 }
                             }
                         }
@@ -375,7 +411,15 @@ async fn main() {
                                 let s1 = dir1.1[j];
                                 let s2 = dir0.1[k];
                                 if is_valid_sandwich(s0, s1, s2) {
-                                    println!("found sandwich: {:?}", (s0, s1, s2));
+                                    // println!("found sandwich: {:?}", (s0, s1, s2));
+                                    let sender = sender.clone();
+                                    let s0 = s0.clone();
+                                    let s1 = s1.clone();
+                                    let s2 = s2.clone();
+                                    let slot = block.slot;
+                                    tokio::spawn(async move {
+                                        sender.send(Sandwich::new(slot, s0, s1, s2)).await.unwrap();
+                                    });
                                 }
                             }
                         }
@@ -401,5 +445,63 @@ async fn main() {
             }
             _ => {}
         }
+    }
+}
+
+async fn handle_websocket(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_socket(socket, state))
+}
+
+async fn handle_socket(
+    mut socket: WebSocket,
+    state: AppState,
+) {
+    let mut receiver = state.sender.subscribe();
+    while let Ok(msg) = receiver.recv().await {
+        if socket.send(Message::Text(serde_json::to_string(&msg).unwrap().into())).await.is_err() {
+            break; // Client disconnected
+        }
+    }
+}
+
+async fn handle_history(State(state): State<AppState>) -> Json<Vec<Sandwich>> {
+    let history = state.message_history.lock().unwrap();
+    Json(history.iter().cloned().collect())
+}
+
+async fn start_web_server(sender: broadcast::Sender<Sandwich>, message_history: Arc<Mutex<VecDeque<Sandwich>>>) {
+    let app = Router::new()
+        .route("/", get(handle_websocket))
+        .route("/history", get(handle_history))
+        .with_state(AppState {
+            message_history,
+            sender,
+        });
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:11000")
+        .await
+        .unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
+}
+
+
+#[tokio::main]
+async fn main() {
+    let (sender, mut receiver) = mpsc::channel::<Sandwich>(100);
+    tokio::spawn(sandwich_finder(sender));
+    let message_history = Arc::new(Mutex::new(VecDeque::<Sandwich>::with_capacity(100)));
+    let (sender, _) = broadcast::channel::<Sandwich>(100);
+    tokio::spawn(start_web_server(sender.clone(), message_history.clone()));
+    while let Some(message) = receiver.recv().await {
+        // println!("Received: {:?}", message);
+        message_history.lock().unwrap().push_back(message.clone());
+        let _ = sender.send(message);
     }
 }
