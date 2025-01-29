@@ -2,17 +2,23 @@ use std::{collections::{HashMap, VecDeque}, fmt::Debug, net::SocketAddr, str::Fr
 use axum::{extract::{ws::{Message, WebSocket}, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Json, Router};
 use dashmap::DashMap;
 use futures::{SinkExt, StreamExt};
-use serde::Serialize;
+use serde::{ser::SerializeStruct, Serialize};
 
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{account::ReadableAccount, address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount}, bs58, commitment_config::CommitmentConfig, instruction::{AccountMeta, Instruction}, pubkey::Pubkey};
+use solana_sdk::{account::ReadableAccount, address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount}, bs58, commitment_config::CommitmentConfig, instruction::{AccountMeta, Instruction}, message, pubkey::Pubkey};
 use tokio::sync::{broadcast, mpsc};
 use yellowstone_grpc_client::GeyserGrpcBuilder;
 use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequestFilterAccounts, SubscribeRequestPing, SubscribeUpdateTransactionInfo}, prelude::{InnerInstruction, InnerInstructions, SubscribeRequest, SubscribeRequestFilterBlocks, TransactionStatusMeta}, tonic::transport::Endpoint};
 
-const RAYDIUM_PUBKEY: Pubkey = Pubkey::from_str_const("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
+const RAYDIUM_V4_PUBKEY: Pubkey = Pubkey::from_str_const("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
+const RAYDIUM_V5_PUBKEY: Pubkey = Pubkey::from_str_const("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
+// discriminant/amm_index/send_ix_index/recv_ix_index/data_len
+// 09/1/+1/+2/17
+// 8fbe5adac41e33de/3/+1/+2/24
+// 37d96256a34ab4ad/3/+1/+2/24
 
 #[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Swap {
     outer_program: Option<String>,
     program: String,
@@ -27,7 +33,7 @@ pub struct Swap {
     sig: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub struct Sandwich {
     slot: u64,
     frontrun: Swap,
@@ -43,6 +49,39 @@ impl Sandwich {
             victim,
             backrun,
         }
+    }
+
+    pub fn estimate_victim_loss(&self) -> (u64, u64) {
+        let (a1, a2) = (self.frontrun.input_amount as i128, self.victim.input_amount as i128);
+        let (b1, b2) = (self.frontrun.output_amount as i128, self.victim.output_amount as i128);
+        let (a3, b3) = (a1 + a2, b1 + b2);
+        let (c1, c2) = (-a1 * b1, -a3 * b3);
+        // | b1   -a1 | | a | = | c1 |
+        // | b3   -a3 | | b |   | c2 |
+        let det = a1 * b3 - b1 * a3;
+        let det_a = a1 * c2 - c1 * a3;
+        let det_b = b1 * c2 - b3 * c1;
+        let a = det_a / det;
+        let b = det_b / det;
+        let k = a * b;
+        let b2_ = b - k / (a + a2);
+        let a2_ = a - k / (b - b2);
+        ((a2 - a2_) as u64, (b2_ - b2) as u64)
+    }
+}
+
+impl Serialize for Sandwich {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        let mut state = serializer.serialize_struct("Sandwich", 5)?;
+        state.serialize_field("slot", &self.slot)?;
+        state.serialize_field("frontrun", &self.frontrun)?;
+        state.serialize_field("victim", &self.victim)?;
+        state.serialize_field("backrun", &self.backrun)?;
+        let (loss_a, loss_b) = self.estimate_victim_loss();
+        state.serialize_field("estLoss", &vec![loss_a, loss_b])?;
+        state.end()
     }
 }
 
@@ -105,11 +144,66 @@ fn resolve_lut_lookups(lut_cache: &DashMap<Pubkey, AddressLookupTableAccount>, m
 
 fn find_transferred_token(ix: &InnerInstruction, meta: &TransactionStatusMeta) -> Option<(Pubkey, u64)> {
     let amount = u64::from_le_bytes(ix.data[1..9].try_into().expect("slice with incorrect length"));
-    let i1 = ix.accounts[1] as usize;
-    let i0 = ix.accounts[0] as usize;
-    meta.post_token_balances.iter().filter(|x| x.account_index as usize == i1 || x.account_index as usize == i0).map(|x| {
+    // transfer: 1/0; transferChecked: 2/0
+    let (i1, i0) = match ix.data[0] {
+        3 => (ix.accounts[1], ix.accounts[0]), // transfer
+        12 => (ix.accounts[2], ix.accounts[0]), // transferChecked
+        _ => return None,
+    };
+    return meta.post_token_balances.iter().filter(|x| x.account_index == i1 as u32 || x.account_index == i0 as u32).map(|x| {
         (Pubkey::from_str(&x.mint).expect("invalid pubkey"), amount)
-    }).next()
+    }).next();
+}
+
+fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pubkey, discriminant: &[u8], amm_index: usize, send_ix_index: usize, recv_ix_index: usize, data_len: usize, meta: &TransactionStatusMeta, account_keys: &Vec<Pubkey>, sig: String, tx_index: u64) -> Vec<Swap> {
+    let mut swaps: Vec<Swap> = Vec::new();
+    // case 1
+    if ix.program_id == *swap_program && ix.data.len() == data_len && ix.data[0..discriminant.len()] == *discriminant {
+        let send_inner_ix = &inner_ix.instructions[send_ix_index - 1];
+        let recv_inner_ix = &inner_ix.instructions[recv_ix_index - 1];
+        let input = find_transferred_token(send_inner_ix, meta).unwrap();
+        let output = find_transferred_token(recv_inner_ix, meta).unwrap();
+        swaps.push(Swap {
+            outer_program: None,
+            program: ix.program_id.to_string(),
+            amm: ix.accounts[amm_index].pubkey.to_string(),
+            signer: account_keys[0].to_string(),
+            subject: account_keys[send_inner_ix.accounts[2] as usize].to_string(),
+            input_mint: input.0.to_string(),
+            output_mint: output.0.to_string(),
+            input_amount: input.1,
+            output_amount: output.1,
+            sig: sig.clone(),
+            order: tx_index,
+        });
+    }
+    // loop thru the inner ixs to find a swap
+    inner_ix.instructions.iter().enumerate().for_each(|(j, inner)| {
+        let program_id = account_keys[inner.program_id_index as usize];
+        if program_id == *swap_program {
+            if inner.data.len() != data_len || inner.data[0..discriminant.len()] != *discriminant {
+                return; // not a swap
+            }
+            let send_inner_ix = &inner_ix.instructions[j + send_ix_index];
+            let recv_inner_ix = &inner_ix.instructions[j + recv_ix_index];
+            let input = find_transferred_token(send_inner_ix, meta).unwrap();
+            let output = find_transferred_token(recv_inner_ix, meta).unwrap();
+            swaps.push(Swap {
+                outer_program: Some(ix.program_id.to_string()),
+                program: program_id.to_string(),
+                amm: account_keys[inner.accounts[amm_index] as usize].to_string(),
+                signer: account_keys[0].to_string(),
+                subject: account_keys[send_inner_ix.accounts[2] as usize].to_string(),
+                input_mint: input.0.to_string(),
+                output_mint: output.0.to_string(),
+                input_amount: input.1,
+                output_amount: output.1,
+                sig: sig.clone(),
+                order: tx_index,
+            });
+        }
+    });
+    swaps
 }
 
 async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &RpcClient, lut_cache: &DashMap<Pubkey, AddressLookupTableAccount>) -> Option<DecompiledTransaction> {
@@ -187,52 +281,12 @@ async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &RpcClie
                     });
                     let mut swaps: Vec<Swap> = Vec::new();
                     ixs.iter().enumerate().for_each(|(i, ix)| {
-                        if !inner_ix_map.contains_key(&i) {
-                            return; // no inner ixs, not a swap
-                        }
-                        let inner_ix = inner_ix_map.get(&i).expect("inner ix not found");
-                        // case 1
-                        if ix.program_id == RAYDIUM_PUBKEY && ix.data.len() == 17 && ix.data[0] == 9 {
-                            let send_inner_ix = &inner_ix.instructions[0];
-                            let recv_inner_ix = &inner_ix.instructions[1];
-                            swaps.push(Swap {
-                                outer_program: None,
-                                program: ix.program_id.to_string(),
-                                amm: ix.accounts[1].pubkey.to_string(),
-                                signer: account_keys[0].to_string(),
-                                subject: account_keys[send_inner_ix.accounts[2] as usize].to_string(),
-                                input_mint: find_transferred_token(send_inner_ix, meta).unwrap().0.to_string(),
-                                output_mint: find_transferred_token(recv_inner_ix, meta).unwrap().0.to_string(),
-                                input_amount: u64::from_le_bytes(send_inner_ix.data[1..9].try_into().expect("slice with incorrect length")),
-                                output_amount: u64::from_le_bytes(recv_inner_ix.data[1..9].try_into().expect("slice with incorrect length")),
-                                sig: sig.clone(),
-                                order: raw_tx.index,
-                            });
-                        }
-                        // loop thru the inner ixs to find a raydium swap
-                        inner_ix.instructions.iter().enumerate().for_each(|(j, inner)| {
-                            let program_id = account_keys[inner.program_id_index as usize];
-                            if program_id == RAYDIUM_PUBKEY {
-                                if inner.data.len() != 17 || inner.data[0] != 9 {
-                                    return; // not a swap
-                                }
-                                let send_inner_ix = &inner_ix.instructions[j + 1];
-                                let recv_inner_ix = &inner_ix.instructions[j + 2];
-                                swaps.push(Swap {
-                                    outer_program: Some(ix.program_id.to_string()),
-                                    program: program_id.to_string(),
-                                    amm: account_keys[inner.accounts[1] as usize].to_string(),
-                                    signer: account_keys[0].to_string(),
-                                    subject: account_keys[send_inner_ix.accounts[2] as usize].to_string(),
-                                    input_mint: find_transferred_token(send_inner_ix, meta).unwrap().0.to_string(),
-                                    output_mint: find_transferred_token(recv_inner_ix, meta).unwrap().0.to_string(),
-                                    input_amount: u64::from_le_bytes(send_inner_ix.data[1..9].try_into().expect("slice with incorrect length")),
-                                    output_amount: u64::from_le_bytes(recv_inner_ix.data[1..9].try_into().expect("slice with incorrect length")),
-                                    sig: sig.clone(),
-                                    order: raw_tx.index,
-                                });
-                            }
-                        });
+                        let inner_ix = inner_ix_map.get(&i);
+                        if let Some(inner_ix) = inner_ix {
+                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V4_PUBKEY, &[0x09], 1, 1, 2, 17, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x8f, 0xbe, 0x5a, 0xda, 0xc4, 0x1e, 0x33, 0xde], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x37, 0xd9, 0x62, 0x56, 0xa3, 0x4a, 0xb4, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                        }                        
                     });
                     return Some(DecompiledTransaction {
                         sig,
@@ -431,6 +485,13 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                     let lut = AddressLookupTable::deserialize(&account_info.data).expect("unable to deserialize account");
                     let key = pubkey_from_slice(&account_info.pubkey[0..32]);
                     println!("lut updated: {:?}", key);
+                    // refuse to shorten luts
+                    if let Some(existing_entry) = lut_cache.get(&key) {
+                        let existing_len = existing_entry.addresses.len();
+                        if existing_len > lut.addresses.len() {
+                            continue;
+                        }
+                    }
                     lut_cache.insert(key, AddressLookupTableAccount {
                         key,
                         addresses: lut.addresses.to_vec(),
@@ -501,7 +562,12 @@ async fn main() {
     tokio::spawn(start_web_server(sender.clone(), message_history.clone()));
     while let Some(message) = receiver.recv().await {
         // println!("Received: {:?}", message);
-        message_history.lock().unwrap().push_back(message.clone());
+        let mut hist = message_history.lock().unwrap();
+        if hist.len() == 100 {
+            hist.pop_front();
+        }
+        hist.push_back(message.clone());
+        drop(hist);
         let _ = sender.send(message);
     }
 }
