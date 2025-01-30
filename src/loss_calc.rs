@@ -129,16 +129,16 @@ impl Gradient for Bundle {
     }
 }
 
-fn main() {
+pub fn main() {
     // inputs
-    let ata_x = 35892534321.0;
-    let ata_y = 141597697241232620.0;
-    let x1 = 954657058.0;
-    let y1 = 3659655652434638.0;
-    let x2 = 2480000000.0;
-    let y2 = 8678090641036287.0;
-    let x3 = 1080157054.0;
-    let y3 = 3659655652434638.0;
+    let ata_x = 763955577093.0;
+    let ata_y = 35056259782319.0;
+    let x1 = 93703641384.0;
+    let y1 = 3821543694385.0;
+    let x2 = 5000000000.0;
+    let y2 = 180587421422.0;
+    let x3 = 94164005402.0;
+    let y3 = 3814610506929.0;
     let mut bundle = Bundle {
         ata_x: ata_x,
         ata_y: ata_y,

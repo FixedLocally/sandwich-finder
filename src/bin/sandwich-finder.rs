@@ -414,6 +414,7 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
             Some(UpdateOneof::Block(block)) => {
                 println!("new block {}", block.slot);
                 let now = std::time::SystemTime::now();
+                let mut bundle_count = 0;
                 let futs = block.transactions.iter().filter_map(|tx| {
                     if tx.is_vote {
                         None
@@ -485,8 +486,9 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                                     let slot = block.slot;
                                     tokio::spawn(async move {
                                         sender.send(Sandwich::new(slot, s0, s1, s2, block.block_time.unwrap().timestamp)).await.unwrap();
-                                        print!("!");
                                     });
+                                    print!("!");
+                                    bundle_count += 1;
                                 }
                             }
                         }
@@ -508,15 +510,16 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                                     let slot = block.slot;
                                     tokio::spawn(async move {
                                         sender.send(Sandwich::new(slot, s0, s1, s2, block.block_time.unwrap().timestamp)).await.unwrap();
-                                        print!("!");
                                     });
+                                    print!("!");
+                                    bundle_count += 1;
                                 }
                             }
                         }
                     }
                     print!(".\n");
                 });
-                println!("block processed in {:?}", now.elapsed().unwrap());
+                println!("block processed in {:?} {} bundles", now.elapsed().unwrap(), bundle_count);
             }
             Some(UpdateOneof::Account(account)) => {
                 if let Some(account_info) = account.account {
