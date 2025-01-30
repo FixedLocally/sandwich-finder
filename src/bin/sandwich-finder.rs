@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, VecDeque}, fmt::Debug, net::SocketAddr, str::FromStr, sync::{Arc, Mutex}};
+use std::{collections::{HashMap, VecDeque}, fmt::Debug, net::SocketAddr, str::FromStr, sync::{Arc, RwLock}};
 use axum::{extract::{ws::{Message, WebSocket}, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Json, Router};
 use dashmap::DashMap;
 use futures::{SinkExt, StreamExt};
@@ -12,10 +12,9 @@ use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentL
 
 const RAYDIUM_V4_PUBKEY: Pubkey = Pubkey::from_str_const("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
 const RAYDIUM_V5_PUBKEY: Pubkey = Pubkey::from_str_const("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
-// discriminant/amm_index/send_ix_index/recv_ix_index/data_len
-// 09/1/+1/+2/17
-// 8fbe5adac41e33de/3/+1/+2/24
-// 37d96256a34ab4ad/3/+1/+2/24
+const PDF_PUBKEY: Pubkey = Pubkey::from_str_const("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P");
+
+const WSOL_PUBKEY: Pubkey = Pubkey::from_str_const("So11111111111111111111111111111111111111112");
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,15 +38,17 @@ pub struct Sandwich {
     frontrun: Swap,
     victim: Swap,
     backrun: Swap,
+    ts: i64,
 }
 
 impl Sandwich {
-    pub fn new(slot: u64, frontrun: Swap, victim: Swap, backrun: Swap) -> Self {
+    pub fn new(slot: u64, frontrun: Swap, victim: Swap, backrun: Swap, ts: i64) -> Self {
         Self {
             slot,
             frontrun,
             victim,
             backrun,
+            ts,
         }
     }
 
@@ -114,7 +115,7 @@ pub struct DecompiledTransaction {
 
 #[derive(Clone)]
 struct AppState {
-    message_history: Arc<Mutex<VecDeque<Sandwich>>>,
+    message_history: Arc<RwLock<VecDeque<Sandwich>>>,
     sender: broadcast::Sender<Sandwich>,
 }
 
@@ -142,16 +143,21 @@ fn resolve_lut_lookups(lut_cache: &DashMap<Pubkey, AddressLookupTableAccount>, m
     (writable, readonly)
 }
 
-fn find_transferred_token(ix: &InnerInstruction, meta: &TransactionStatusMeta) -> Option<(Pubkey, u64)> {
-    let amount = u64::from_le_bytes(ix.data[1..9].try_into().expect("slice with incorrect length"));
+fn find_transferred_token(ix: &InnerInstruction, meta: &TransactionStatusMeta) -> Option<(Pubkey, u8, u64)> {
     // transfer: 1/0; transferChecked: 2/0
-    let (i1, i0) = match ix.data[0] {
-        3 => (ix.accounts[1], ix.accounts[0]), // transfer
-        12 => (ix.accounts[2], ix.accounts[0]), // transferChecked
+    let (i1, i0, subject_idx, range) = match ix.data[0] {
+        2 => (99, 99, ix.accounts[0], 4..12), // system program transfer
+        3 => (ix.accounts[1], ix.accounts[0], ix.accounts[2], 1..9), // transfer
+        12 => (ix.accounts[2], ix.accounts[0], ix.accounts[3], 1..9), // transferChecked
+        228 => (99, 99, ix.accounts[0], 48..56), // anchor self cpi log for pdf (no subject)
         _ => return None,
     };
+    let amount = u64::from_le_bytes(ix.data[range].try_into().expect("slice with incorrect length"));
+    if (i1, i0) == (99, 99) {
+        return Some((WSOL_PUBKEY, subject_idx, amount));
+    }
     return meta.post_token_balances.iter().filter(|x| x.account_index == i1 as u32 || x.account_index == i0 as u32).map(|x| {
-        (Pubkey::from_str(&x.mint).expect("invalid pubkey"), amount)
+        (Pubkey::from_str(&x.mint).expect("invalid pubkey"), subject_idx, amount)
     }).next();
 }
 
@@ -168,11 +174,11 @@ fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pub
             program: ix.program_id.to_string(),
             amm: ix.accounts[amm_index].pubkey.to_string(),
             signer: account_keys[0].to_string(),
-            subject: account_keys[send_inner_ix.accounts[2] as usize].to_string(),
+            subject: account_keys[input.1 as usize].to_string(),
             input_mint: input.0.to_string(),
             output_mint: output.0.to_string(),
-            input_amount: input.1,
-            output_amount: output.1,
+            input_amount: input.2,
+            output_amount: output.2,
             sig: sig.clone(),
             order: tx_index,
         });
@@ -193,11 +199,11 @@ fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pub
                 program: program_id.to_string(),
                 amm: account_keys[inner.accounts[amm_index] as usize].to_string(),
                 signer: account_keys[0].to_string(),
-                subject: account_keys[send_inner_ix.accounts[2] as usize].to_string(),
+                subject: account_keys[input.1 as usize].to_string(),
                 input_mint: input.0.to_string(),
                 output_mint: output.0.to_string(),
-                input_amount: input.1,
-                output_amount: output.1,
+                input_amount: input.2,
+                output_amount: output.2,
                 sig: sig.clone(),
                 order: tx_index,
             });
@@ -280,12 +286,23 @@ async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &RpcClie
                         inner_ix_map.insert(inner_ix.index as usize, inner_ix);
                     });
                     let mut swaps: Vec<Swap> = Vec::new();
+                    // discriminant/amm_index/send_ix_index/recv_ix_index/data_len
+                    // ray v4 swap
+                    // 09/1/+1/+2/17
+                    // ray v5 swap_exact_in/swap_exact_out
+                    // 8fbe5adac41e33de/3/+1/+2/24
+                    // 37d96256a34ab4ad/3/+1/+2/24
+                    // pdf buy/sell
+                    // 66063d1201daebea/3/+2/+1/24
+                    // 33e685a4017f83ad/3/+1/+2/24
                     ixs.iter().enumerate().for_each(|(i, ix)| {
                         let inner_ix = inner_ix_map.get(&i);
                         if let Some(inner_ix) = inner_ix {
                             swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V4_PUBKEY, &[0x09], 1, 1, 2, 17, meta, &account_keys, sig.clone(), raw_tx.index));
                             swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x8f, 0xbe, 0x5a, 0xda, 0xc4, 0x1e, 0x33, 0xde], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
                             swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x37, 0xd9, 0x62, 0x56, 0xa3, 0x4a, 0xb4, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &PDF_PUBKEY, &[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea], 3, 2, 1, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &PDF_PUBKEY, &[0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
                         }                        
                     });
                     return Some(DecompiledTransaction {
@@ -337,6 +354,10 @@ fn is_valid_sandwich(s0: &Swap, s1: &Swap, s2: &Swap) -> bool {
     if s0.outer_program != s2.outer_program || s0.outer_program.is_none() || s2.outer_program.is_none() {
         return false;
     }
+    // specifically disallow using jup as the wrapper program due to the amount of false +ve's
+    if s0.outer_program == Some("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4".to_string()) {
+        return false;
+    }
     true
 }
 
@@ -385,6 +406,8 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
         match msg.update_oneof {
             Some(UpdateOneof::Block(block)) => {
                 println!("new block {}", block.slot);
+                let now = std::time::Instant::now();
+                let mut bundle_count = 0;
                 let futs = block.transactions.iter().filter_map(|tx| {
                     if tx.is_vote {
                         None
@@ -451,8 +474,9 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                                     let s2 = s2.clone();
                                     let slot = block.slot;
                                     tokio::spawn(async move {
-                                        sender.send(Sandwich::new(slot, s0, s1, s2)).await.unwrap();
+                                        sender.send(Sandwich::new(slot, s0, s1, s2, block.block_time.unwrap().timestamp)).await.unwrap();
                                     });
+                                    bundle_count += 1;
                                 }
                             }
                         }
@@ -472,13 +496,15 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                                     let s2 = s2.clone();
                                     let slot = block.slot;
                                     tokio::spawn(async move {
-                                        sender.send(Sandwich::new(slot, s0, s1, s2)).await.unwrap();
+                                        sender.send(Sandwich::new(slot, s0, s1, s2, block.block_time.unwrap().timestamp)).await.unwrap();
                                     });
+                                    bundle_count += 1;
                                 }
                             }
                         }
                     }
                 });
+                println!("block {} processed in {}us, {} bundles found", block.slot, now.elapsed().as_micros(), bundle_count);
             }
             Some(UpdateOneof::Account(account)) => {
                 if let Some(account_info) = account.account {
@@ -529,11 +555,11 @@ async fn handle_socket(
 }
 
 async fn handle_history(State(state): State<AppState>) -> Json<Vec<Sandwich>> {
-    let history = state.message_history.lock().unwrap();
+    let history = state.message_history.try_read().unwrap();
     Json(history.iter().cloned().collect())
 }
 
-async fn start_web_server(sender: broadcast::Sender<Sandwich>, message_history: Arc<Mutex<VecDeque<Sandwich>>>) {
+async fn start_web_server(sender: broadcast::Sender<Sandwich>, message_history: Arc<RwLock<VecDeque<Sandwich>>>) {
     let app = Router::new()
         .route("/", get(handle_websocket))
         .route("/history", get(handle_history))
@@ -557,12 +583,12 @@ async fn start_web_server(sender: broadcast::Sender<Sandwich>, message_history: 
 async fn main() {
     let (sender, mut receiver) = mpsc::channel::<Sandwich>(100);
     tokio::spawn(sandwich_finder(sender));
-    let message_history = Arc::new(Mutex::new(VecDeque::<Sandwich>::with_capacity(100)));
+    let message_history = Arc::new(RwLock::new(VecDeque::<Sandwich>::with_capacity(100)));
     let (sender, _) = broadcast::channel::<Sandwich>(100);
     tokio::spawn(start_web_server(sender.clone(), message_history.clone()));
     while let Some(message) = receiver.recv().await {
         // println!("Received: {:?}", message);
-        let mut hist = message_history.lock().unwrap();
+        let mut hist = message_history.write().unwrap();
         if hist.len() == 100 {
             hist.pop_front();
         }
