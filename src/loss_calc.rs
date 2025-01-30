@@ -62,16 +62,36 @@ impl Bundle {
         return (y1 / self.y1 - 1f64).powi(2) + (y2 / self.y2 - 1f64).powi(2) + (x3 / self.x3 - 1f64).powi(2);
     }
 
-    pub fn update_initial_balances(&mut self) -> Result<(), Error> {
-        let init_param = vec![0.0, 0.0];
-        let linesearch = MoreThuenteLineSearch::new();
-        let solver = SteepestDescent::new(linesearch);
-        let res = Executor::new(self.clone(), solver)
-            .configure(|state| state.param(init_param).max_iters(1000))
-            .run()?;
-        let opt_result = res.state.get_best_param().unwrap();
-        self.ata_x = self.ata_x * opt_result[0].exp();
-        self.ata_y = self.ata_y * opt_result[1].exp();
+    pub fn update_initial_balances(&mut self, possible_fee_rates: &[&f64]) -> Result<(), Error> {
+        let opt_result = possible_fee_rates.iter().fold(None, |acc, fee_rate| {
+            let init_param = vec![0.0, 0.0];
+            let linesearch = MoreThuenteLineSearch::new();
+            let solver = SteepestDescent::new(linesearch);
+            let res = Executor::new(self.clone(), solver)
+                .configure(|state| state.param(init_param).max_iters(1000))
+                .run();
+            if let Ok(res) = res {
+                let opt_result = res.state.get_best_param().unwrap();
+                let loss = res.state.get_best_cost();
+                match acc {
+                    None => Some((*fee_rate, loss, opt_result.clone())),
+                    Some((_, acc_loss, _)) => {
+                        if loss < acc_loss {
+                            Some((*fee_rate, loss, opt_result.clone()))
+                        } else {
+                            acc
+                        }
+                    }
+                }
+            } else {
+                acc
+            }
+        });
+        if let Some(opt_result) = opt_result {
+            self.fee_rate = *opt_result.0;
+            self.ata_x = self.ata_x * opt_result.2[0].exp();
+            self.ata_y = self.ata_y * opt_result.2[1].exp();
+        }
         Ok(())
     }
 
@@ -131,7 +151,7 @@ fn main() {
         fee_rate: 0.0025f64,
         fee_retention: 0.84f64,
     };
-    bundle.update_initial_balances().unwrap();
+    bundle.update_initial_balances(&[&0.0025]).unwrap();
 
     // print result
     let should_get = bundle.calc_swap_x(bundle.x2).0;

@@ -14,6 +14,8 @@ use sandwich_finder::loss_calc::Bundle;
 
 const RAYDIUM_V4_PUBKEY: Pubkey = Pubkey::from_str_const("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
 const RAYDIUM_V5_PUBKEY: Pubkey = Pubkey::from_str_const("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
+const RAYDIUM_V4_PARAMS: (&str, f64, &[&f64]) = ("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8", 0.88, &[&0.0025]);
+const RAYDIUM_V5_PARAMS: (&str, f64, &[&f64]) = ("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C", 0.84, &[&0.0025, &0.01, &0.02, &0.04]);
 // discriminant/amm_index/send_ix_index/recv_ix_index/data_len
 // 09/1/+1/+2/17
 // 8fbe5adac41e33de/3/+1/+2/24
@@ -62,6 +64,11 @@ impl Sandwich {
         if let Some(victim_loss) = self.victim_loss {
             return victim_loss;
         }
+        let params = match self.victim.program.as_str() {
+            "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8" => RAYDIUM_V4_PARAMS,
+            "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C" => RAYDIUM_V5_PARAMS,
+            _ => unreachable!(),
+        };
         let mut bundle = Bundle::new(
             self.frontrun.pool_pre_balances.0 as f64,
             self.frontrun.pool_pre_balances.1 as f64,
@@ -72,9 +79,9 @@ impl Sandwich {
             self.backrun.input_amount as f64,
             self.backrun.output_amount as f64,
             0.003,
-            0.003,
+            params.1,
         );
-        let victim_loss = if let Ok(()) = bundle.update_initial_balances() {
+        let victim_loss = if let Ok(()) = bundle.update_initial_balances(params.2) {
             Some(bundle.user_losses())
         } else {
             None
@@ -406,6 +413,7 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
         match msg.update_oneof {
             Some(UpdateOneof::Block(block)) => {
                 println!("new block {}", block.slot);
+                let now = std::time::SystemTime::now();
                 let futs = block.transactions.iter().filter_map(|tx| {
                     if tx.is_vote {
                         None
@@ -444,17 +452,20 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                     if swaps.len() < 3 {
                         return;
                     }
-                    println!("{} {}", _amm, swaps.len());
+                    print!("{} {}", _amm, swaps.len());
                     // within the group, further group by direction (input token)
                     let mut input_swaps: HashMap<String, Vec<&Swap>> = HashMap::new();
                     swaps.iter().for_each(|swap| {
                         let input_swaps = input_swaps.entry(swap.input_mint.clone()).or_insert(Vec::new());
                         input_swaps.push(swap);
                     });
+                    print!(".");
                     // bail out if there's not exactly 2 directions
                     if input_swaps.len() != 2 {
+                        print!("\n");
                         return;
                     }
+                    print!(".");
                     let mut iter = input_swaps.iter();
                     let dir0 = iter.next().unwrap();
                     let dir1 = iter.next().unwrap();
@@ -474,11 +485,13 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                                     let slot = block.slot;
                                     tokio::spawn(async move {
                                         sender.send(Sandwich::new(slot, s0, s1, s2, block.block_time.unwrap().timestamp)).await.unwrap();
+                                        print!("!");
                                     });
                                 }
                             }
                         }
                     }
+                    print!(".");
                     // look for 1-1-0 sandwiches (check #2)
                     for i in 0..dir1.1.len() {
                         for j in i+1..dir1.1.len() {
@@ -495,12 +508,15 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                                     let slot = block.slot;
                                     tokio::spawn(async move {
                                         sender.send(Sandwich::new(slot, s0, s1, s2, block.block_time.unwrap().timestamp)).await.unwrap();
+                                        print!("!");
                                     });
                                 }
                             }
                         }
                     }
+                    print!(".\n");
                 });
+                println!("block processed in {:?}", now.elapsed().unwrap());
             }
             Some(UpdateOneof::Account(account)) => {
                 if let Some(account_info) = account.account {
@@ -551,7 +567,7 @@ async fn handle_socket(
 }
 
 async fn handle_history(State(state): State<AppState>) -> Json<Vec<Sandwich>> {
-    let history = state.message_history.lock().unwrap();
+    let history = state.message_history.try_lock().unwrap();
     Json(history.iter().cloned().collect())
 }
 
@@ -584,8 +600,8 @@ async fn main() {
     tokio::spawn(start_web_server(sender.clone(), message_history.clone()));
     while let Some(mut message) = receiver.recv().await {
         // println!("Received: {:?}", message);
-        let mut hist = message_history.lock().unwrap();
         message.estimate_victim_loss();
+        let mut hist = message_history.lock().unwrap();
         if hist.len() == 100 {
             hist.pop_front();
         }
