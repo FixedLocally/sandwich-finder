@@ -75,11 +75,12 @@ impl Serialize for Sandwich {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer {
-        let mut state = serializer.serialize_struct("Sandwich", 5)?;
+        let mut state = serializer.serialize_struct("Sandwich", 6)?;
         state.serialize_field("slot", &self.slot)?;
         state.serialize_field("frontrun", &self.frontrun)?;
         state.serialize_field("victim", &self.victim)?;
         state.serialize_field("backrun", &self.backrun)?;
+        state.serialize_field("ts", &self.ts)?;
         let (loss_a, loss_b) = self.estimate_victim_loss();
         state.serialize_field("estLoss", &vec![loss_a, loss_b])?;
         state.end()
