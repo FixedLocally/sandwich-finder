@@ -5,10 +5,12 @@ use futures::{SinkExt, StreamExt};
 use serde::{ser::SerializeStruct, Serialize};
 
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{account::ReadableAccount, address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount}, bs58, commitment_config::CommitmentConfig, instruction::{AccountMeta, Instruction}, message, pubkey::Pubkey};
+use solana_sdk::{account::ReadableAccount, address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount}, bs58, commitment_config::CommitmentConfig, instruction::{AccountMeta, Instruction}, pubkey::Pubkey};
 use tokio::sync::{broadcast, mpsc};
 use yellowstone_grpc_client::GeyserGrpcBuilder;
 use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequestFilterAccounts, SubscribeRequestPing, SubscribeUpdateTransactionInfo}, prelude::{InnerInstruction, InnerInstructions, SubscribeRequest, SubscribeRequestFilterBlocks, TransactionStatusMeta}, tonic::transport::Endpoint};
+
+use sandwich_finder::loss_calc::Bundle;
 
 const RAYDIUM_V4_PUBKEY: Pubkey = Pubkey::from_str_const("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
 const RAYDIUM_V5_PUBKEY: Pubkey = Pubkey::from_str_const("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
@@ -29,6 +31,7 @@ pub struct Swap {
     output_mint: String,
     input_amount: u64,
     output_amount: u64,
+    pool_pre_balances: (u64, u64),
     order: u64,
     sig: String,
 }
@@ -39,34 +42,45 @@ pub struct Sandwich {
     frontrun: Swap,
     victim: Swap,
     backrun: Swap,
+    ts: i64,
+    victim_loss: Option<Option<(u64, u64)>>,
 }
 
 impl Sandwich {
-    pub fn new(slot: u64, frontrun: Swap, victim: Swap, backrun: Swap) -> Self {
+    pub fn new(slot: u64, frontrun: Swap, victim: Swap, backrun: Swap, ts: i64) -> Self {
         Self {
             slot,
             frontrun,
             victim,
             backrun,
+            ts,
+            victim_loss: None,
         }
     }
 
-    pub fn estimate_victim_loss(&self) -> (u64, u64) {
-        let (a1, a2) = (self.frontrun.input_amount as i128, self.victim.input_amount as i128);
-        let (b1, b2) = (self.frontrun.output_amount as i128, self.victim.output_amount as i128);
-        let (a3, b3) = (a1 + a2, b1 + b2);
-        let (c1, c2) = (-a1 * b1, -a3 * b3);
-        // | b1   -a1 | | a | = | c1 |
-        // | b3   -a3 | | b |   | c2 |
-        let det = a1 * b3 - b1 * a3;
-        let det_a = a1 * c2 - c1 * a3;
-        let det_b = b1 * c2 - b3 * c1;
-        let a = det_a / det;
-        let b = det_b / det;
-        let k = a * b;
-        let b2_ = b - k / (a + a2);
-        let a2_ = a - k / (b - b2);
-        ((a2 - a2_) as u64, (b2_ - b2) as u64)
+    pub fn estimate_victim_loss(&mut self) -> Option<(u64, u64)> {
+        if let Some(victim_loss) = self.victim_loss {
+            return victim_loss;
+        }
+        let mut bundle = Bundle::new(
+            self.frontrun.pool_pre_balances.0 as f64,
+            self.frontrun.pool_pre_balances.1 as f64,
+            self.frontrun.input_amount as f64,
+            self.frontrun.output_amount as f64,
+            self.victim.input_amount as f64,
+            self.victim.output_amount as f64,
+            self.backrun.input_amount as f64,
+            self.backrun.output_amount as f64,
+            0.003,
+            0.003,
+        );
+        let victim_loss = if let Ok(()) = bundle.update_initial_balances() {
+            Some(bundle.user_losses())
+        } else {
+            None
+        };
+        self.victim_loss = Some(victim_loss);
+        victim_loss
     }
 }
 
@@ -74,13 +88,17 @@ impl Serialize for Sandwich {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer {
-        let mut state = serializer.serialize_struct("Sandwich", 5)?;
+        let mut state = serializer.serialize_struct("Sandwich", 6)?;
         state.serialize_field("slot", &self.slot)?;
+        state.serialize_field("ts", &self.ts)?;
         state.serialize_field("frontrun", &self.frontrun)?;
         state.serialize_field("victim", &self.victim)?;
         state.serialize_field("backrun", &self.backrun)?;
-        let (loss_a, loss_b) = self.estimate_victim_loss();
-        state.serialize_field("estLoss", &vec![loss_a, loss_b])?;
+        if let Some(Some((loss_a, loss_b))) = self.victim_loss {
+            state.serialize_field("estLoss", &vec![loss_a, loss_b])?;
+        } else {
+            state.serialize_field("estLoss", &vec![0, 0])?;
+        }
         state.end()
     }
 }
@@ -142,7 +160,7 @@ fn resolve_lut_lookups(lut_cache: &DashMap<Pubkey, AddressLookupTableAccount>, m
     (writable, readonly)
 }
 
-fn find_transferred_token(ix: &InnerInstruction, meta: &TransactionStatusMeta) -> Option<(Pubkey, u64)> {
+fn find_transferred_token(ix: &InnerInstruction, meta: &TransactionStatusMeta, pool_is_sender: bool) -> Option<(Pubkey, u64, u64)> {
     let amount = u64::from_le_bytes(ix.data[1..9].try_into().expect("slice with incorrect length"));
     // transfer: 1/0; transferChecked: 2/0
     let (i1, i0) = match ix.data[0] {
@@ -150,8 +168,9 @@ fn find_transferred_token(ix: &InnerInstruction, meta: &TransactionStatusMeta) -
         12 => (ix.accounts[2], ix.accounts[0]), // transferChecked
         _ => return None,
     };
-    return meta.post_token_balances.iter().filter(|x| x.account_index == i1 as u32 || x.account_index == i0 as u32).map(|x| {
-        (Pubkey::from_str(&x.mint).expect("invalid pubkey"), amount)
+    let target_idx = if pool_is_sender { i0 } else { i1 };
+    return meta.pre_token_balances.iter().filter(|x| x.account_index == target_idx as u32).map(|x| {
+        (Pubkey::from_str(&x.mint).expect("invalid pubkey"), amount, x.ui_token_amount.as_ref().unwrap().amount.parse().unwrap())
     }).next();
 }
 
@@ -161,8 +180,8 @@ fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pub
     if ix.program_id == *swap_program && ix.data.len() == data_len && ix.data[0..discriminant.len()] == *discriminant {
         let send_inner_ix = &inner_ix.instructions[send_ix_index - 1];
         let recv_inner_ix = &inner_ix.instructions[recv_ix_index - 1];
-        let input = find_transferred_token(send_inner_ix, meta).unwrap();
-        let output = find_transferred_token(recv_inner_ix, meta).unwrap();
+        let input = find_transferred_token(send_inner_ix, meta, false).unwrap();
+        let output = find_transferred_token(recv_inner_ix, meta, true).unwrap();
         swaps.push(Swap {
             outer_program: None,
             program: ix.program_id.to_string(),
@@ -173,6 +192,7 @@ fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pub
             output_mint: output.0.to_string(),
             input_amount: input.1,
             output_amount: output.1,
+            pool_pre_balances: (input.2, output.2),
             sig: sig.clone(),
             order: tx_index,
         });
@@ -186,8 +206,8 @@ fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pub
             }
             let send_inner_ix = &inner_ix.instructions[j + send_ix_index];
             let recv_inner_ix = &inner_ix.instructions[j + recv_ix_index];
-            let input = find_transferred_token(send_inner_ix, meta).unwrap();
-            let output = find_transferred_token(recv_inner_ix, meta).unwrap();
+            let input = find_transferred_token(send_inner_ix, meta, false).unwrap();
+            let output = find_transferred_token(recv_inner_ix, meta, true).unwrap();
             swaps.push(Swap {
                 outer_program: Some(ix.program_id.to_string()),
                 program: program_id.to_string(),
@@ -198,6 +218,7 @@ fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pub
                 output_mint: output.0.to_string(),
                 input_amount: input.1,
                 output_amount: output.1,
+                pool_pre_balances: (input.2, output.2),
                 sig: sig.clone(),
                 order: tx_index,
             });
@@ -423,6 +444,7 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                     if swaps.len() < 3 {
                         return;
                     }
+                    println!("{} {}", _amm, swaps.len());
                     // within the group, further group by direction (input token)
                     let mut input_swaps: HashMap<String, Vec<&Swap>> = HashMap::new();
                     swaps.iter().for_each(|swap| {
@@ -451,7 +473,7 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                                     let s2 = s2.clone();
                                     let slot = block.slot;
                                     tokio::spawn(async move {
-                                        sender.send(Sandwich::new(slot, s0, s1, s2)).await.unwrap();
+                                        sender.send(Sandwich::new(slot, s0, s1, s2, block.block_time.unwrap().timestamp)).await.unwrap();
                                     });
                                 }
                             }
@@ -472,7 +494,7 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                                     let s2 = s2.clone();
                                     let slot = block.slot;
                                     tokio::spawn(async move {
-                                        sender.send(Sandwich::new(slot, s0, s1, s2)).await.unwrap();
+                                        sender.send(Sandwich::new(slot, s0, s1, s2, block.block_time.unwrap().timestamp)).await.unwrap();
                                     });
                                 }
                             }
@@ -560,9 +582,10 @@ async fn main() {
     let message_history = Arc::new(Mutex::new(VecDeque::<Sandwich>::with_capacity(100)));
     let (sender, _) = broadcast::channel::<Sandwich>(100);
     tokio::spawn(start_web_server(sender.clone(), message_history.clone()));
-    while let Some(message) = receiver.recv().await {
+    while let Some(mut message) = receiver.recv().await {
         // println!("Received: {:?}", message);
         let mut hist = message_history.lock().unwrap();
+        message.estimate_victim_loss();
         if hist.len() == 100 {
             hist.pop_front();
         }
