@@ -5,7 +5,7 @@ use futures::{SinkExt, StreamExt};
 use serde::{ser::SerializeStruct, Serialize};
 
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{account::ReadableAccount, address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount}, bs58, commitment_config::CommitmentConfig, instruction::{AccountMeta, Instruction}, message, pubkey::Pubkey};
+use solana_sdk::{account::ReadableAccount, address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount}, bs58, commitment_config::CommitmentConfig, instruction::{AccountMeta, Instruction}, pubkey::Pubkey};
 use tokio::sync::{broadcast, mpsc};
 use yellowstone_grpc_client::GeyserGrpcBuilder;
 use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequestFilterAccounts, SubscribeRequestPing, SubscribeUpdateTransactionInfo}, prelude::{InnerInstruction, InnerInstructions, SubscribeRequest, SubscribeRequestFilterBlocks, TransactionStatusMeta}, tonic::transport::Endpoint};
@@ -36,13 +36,13 @@ pub struct Swap {
 pub struct Sandwich {
     slot: u64,
     frontrun: Swap,
-    victim: Swap,
+    victim: Vec<Swap>,
     backrun: Swap,
     ts: i64,
 }
 
 impl Sandwich {
-    pub fn new(slot: u64, frontrun: Swap, victim: Swap, backrun: Swap, ts: i64) -> Self {
+    pub fn new(slot: u64, frontrun: Swap, victim: Vec<Swap>, backrun: Swap, ts: i64) -> Self {
         Self {
             slot,
             frontrun,
@@ -53,8 +53,8 @@ impl Sandwich {
     }
 
     pub fn estimate_victim_loss(&self) -> (u64, u64) {
-        let (a1, a2) = (self.frontrun.input_amount as i128, self.victim.input_amount as i128);
-        let (b1, b2) = (self.frontrun.output_amount as i128, self.victim.output_amount as i128);
+        let (a1, a2) = (self.frontrun.input_amount as i128, self.victim[0].input_amount as i128);
+        let (b1, b2) = (self.frontrun.output_amount as i128, self.victim[0].output_amount as i128);
         let (a3, b3) = (a1 + a2, b1 + b2);
         let (c1, c2) = (-a1 * b1, -a3 * b3);
         // | b1   -a1 | | a | = | c1 |
@@ -81,8 +81,6 @@ impl Serialize for Sandwich {
         state.serialize_field("victim", &self.victim)?;
         state.serialize_field("backrun", &self.backrun)?;
         state.serialize_field("ts", &self.ts)?;
-        let (loss_a, loss_b) = self.estimate_victim_loss();
-        state.serialize_field("estLoss", &vec![loss_a, loss_b])?;
         state.end()
     }
 }
@@ -320,49 +318,66 @@ async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &RpcClie
     None    
 }
 
-fn is_valid_sandwich(s0: &Swap, s1: &Swap, s2: &Swap) -> bool {
-    // criteria for sandwiches:
-    // 1. has 3 txs of strictly increasing inclusion order (frontrun-victim-backrun)
-    // 2. the 1st and 2nd are in the same direction, the 3rd is in reverse
-    // 3. output of 3rd tx >= input of 1st tx && output of 1st tx >= input of 3rd tx (profitability constraint)
-    // 4. all 3 txs use the same amm
-    // 5. 2nd tx's swapper is different from the 1st and 3rd
-    // 6. a wrapper program is present in the 1st and 3rd txs and are the same
-    // check #1
-    if s1.order >= s2.order || s0.order >= s1.order {
-        return false;
+fn find_sandwiches(in_trades: &Vec<&Swap>, out_trades: &Vec<&Swap>, slot: u64, ts: i64) -> Vec<Sandwich> {
+    // for each in_trade, we look for an out_trade that satisfies the sandwich criteria
+    // since we've already went this far, we just need to pass checks 1, 3, 6
+    // and we can consider all trades between the in/out trades to be sandwiched
+    let mut sandwiches = Vec::new();
+    for i in 0..in_trades.len() {
+        for j in (0..out_trades.len()).rev() {
+            let in_trade = in_trades[i];
+            let out_trade = out_trades[j];
+            // check #1
+            if out_trade.order <= in_trade.order {
+                // subsequent out_trade's will have even lower order
+                break;
+            }
+            // check #3
+            if out_trade.output_amount < in_trade.input_amount {
+                continue;
+            }
+            if out_trade.input_amount > in_trade.output_amount {
+                continue;
+            }
+            // check #6
+            if in_trade.outer_program != out_trade.outer_program || in_trade.outer_program.is_none() || out_trade.outer_program.is_none() {
+                continue;
+            }
+            if in_trade.outer_program == Some("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4".to_string()) {
+                continue;
+            }
+            // these two trades form the sandwich, now we just need to find the victims (in_trades between in_trade and out_trade)
+            let mut victims: Vec<Swap> = Vec::new();
+            for k in i+1..in_trades.len() {
+                let victim = in_trades[k];
+                // check #1
+                if victim.order >= out_trade.order {
+                    // subsequent in_trade's will have even higher order
+                    break;
+                }
+                // check #5
+                if victim.signer == in_trade.signer || victim.signer == out_trade.signer {
+                    continue;
+                }
+                victims.push(victim.clone());
+            }
+            if !victims.is_empty() {
+                sandwiches.push(Sandwich::new(slot, in_trade.clone(), victims, out_trade.clone(), ts));
+            }
+        }
     }
-    // check #2
-    if s0.input_mint != s1.input_mint || s0.output_mint != s1.output_mint {
-        return false;
-    }
-    if s2.input_mint != s0.output_mint || s2.output_mint != s0.input_mint {
-        return false;
-    }
-    // check #3
-    if s2.output_amount < s0.input_amount || s0.output_amount < s2.input_amount {
-        return false;
-    }
-    // check #4
-    if s0.amm != s1.amm || s1.amm != s2.amm {
-        return false;
-    }
-    // check #5
-    if s0.signer == s1.signer || s1.signer == s2.signer {
-        return false;
-    }
-    // check #6
-    if s0.outer_program != s2.outer_program || s0.outer_program.is_none() || s2.outer_program.is_none() {
-        return false;
-    }
-    // specifically disallow using jup as the wrapper program due to the amount of false +ve's
-    if s0.outer_program == Some("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4".to_string()) {
-        return false;
-    }
-    true
+    sandwiches
 }
 
 async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
+    loop {
+        sandwich_finder_loop(sender.clone()).await;
+        // reconnect in 5secs
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    }
+}
+
+async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>) {
     let rpc_url = "http://127.0.0.1:6969";
     let grpc_url = "http://127.0.0.1:10000";
     let rpc_client = RpcClient::new_with_commitment(rpc_url.to_string(), CommitmentConfig::processed());
@@ -401,13 +416,16 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
     println!("subscription request sent!");
     while let Some(msg) = stream.next().await {
         if msg.is_err() {
-            continue;
+            println!("grpc error: {:?}", msg.err());
+            break;
         }
         let msg = msg.unwrap();
         match msg.update_oneof {
             Some(UpdateOneof::Block(block)) => {
-                println!("new block {}", block.slot);
+                println!("new block {}, {} txs", block.slot, block.transactions.len());
                 let now = std::time::Instant::now();
+                let ts = block.block_time.unwrap().timestamp;
+                let slot = block.slot;
                 let mut bundle_count = 0;
                 let futs = block.transactions.iter().filter_map(|tx| {
                     if tx.is_vote {
@@ -434,10 +452,10 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                 // 6. a wrapper program is present in the 1st and 3rd txs and are the same
 
                 // group swaps by amm
-                let mut amm_swaps: HashMap<String, Vec<&Swap>> = HashMap::new();
+                let mut amm_swaps: HashMap<&String, Vec<&Swap>> = HashMap::new();
                 block_txs.iter().for_each(|tx| {
                     tx.swaps.iter().for_each(|swap| {
-                        let swaps = amm_swaps.entry(swap.amm.clone()).or_insert(Vec::new());
+                        let swaps = amm_swaps.entry(&swap.amm).or_insert(Vec::new());
                         swaps.push(swap);
                     });
                 });
@@ -448,9 +466,9 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                         return;
                     }
                     // within the group, further group by direction (input token)
-                    let mut input_swaps: HashMap<String, Vec<&Swap>> = HashMap::new();
+                    let mut input_swaps: HashMap<&String, Vec<&Swap>> = HashMap::new();
                     swaps.iter().for_each(|swap| {
-                        let input_swaps = input_swaps.entry(swap.input_mint.clone()).or_insert(Vec::new());
+                        let input_swaps = input_swaps.entry(&swap.input_mint).or_insert(Vec::new());
                         input_swaps.push(swap);
                     });
                     // bail out if there's not exactly 2 directions
@@ -461,49 +479,23 @@ async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
                     let dir0 = iter.next().unwrap();
                     let dir1 = iter.next().unwrap();
                     // look for 0-0-1 sandwiches (check #2)
-                    for i in 0..dir0.1.len() {
-                        for j in i+1..dir0.1.len() {
-                            for k in 0..dir1.1.len() {
-                                let s0 = dir0.1[i];
-                                let s1 = dir0.1[j];
-                                let s2 = dir1.1[k];
-                                if is_valid_sandwich(s0, s1, s2) {
-                                    // println!("found sandwich: {:?}", (s0, s1, s2));
-                                    let sender = sender.clone();
-                                    let s0 = s0.clone();
-                                    let s1 = s1.clone();
-                                    let s2 = s2.clone();
-                                    let slot = block.slot;
-                                    tokio::spawn(async move {
-                                        sender.send(Sandwich::new(slot, s0, s1, s2, block.block_time.unwrap().timestamp)).await.unwrap();
-                                    });
-                                    bundle_count += 1;
-                                }
-                            }
-                        }
-                    }
+                    find_sandwiches(dir0.1, dir1.1, slot, ts).iter().for_each(|sandwich| {
+                        let sender = sender.clone();
+                        let sandwich = sandwich.clone();
+                        tokio::spawn(async move {
+                            sender.send(sandwich).await.unwrap();
+                        });
+                        bundle_count += 1;
+                    });
                     // look for 1-1-0 sandwiches (check #2)
-                    for i in 0..dir1.1.len() {
-                        for j in i+1..dir1.1.len() {
-                            for k in 0..dir0.1.len() {
-                                let s0 = dir1.1[i];
-                                let s1 = dir1.1[j];
-                                let s2 = dir0.1[k];
-                                if is_valid_sandwich(s0, s1, s2) {
-                                    // println!("found sandwich: {:?}", (s0, s1, s2));
-                                    let sender = sender.clone();
-                                    let s0 = s0.clone();
-                                    let s1 = s1.clone();
-                                    let s2 = s2.clone();
-                                    let slot = block.slot;
-                                    tokio::spawn(async move {
-                                        sender.send(Sandwich::new(slot, s0, s1, s2, block.block_time.unwrap().timestamp)).await.unwrap();
-                                    });
-                                    bundle_count += 1;
-                                }
-                            }
-                        }
-                    }
+                    find_sandwiches(dir1.1, dir0.1, slot, ts).iter().for_each(|sandwich| {
+                        let sender = sender.clone();
+                        let sandwich = sandwich.clone();
+                        tokio::spawn(async move {
+                            sender.send(sandwich).await.unwrap();
+                        });
+                        bundle_count += 1;
+                    });
                 });
                 println!("block {} processed in {}us, {} bundles found", block.slot, now.elapsed().as_micros(), bundle_count);
             }
@@ -556,8 +548,13 @@ async fn handle_socket(
 }
 
 async fn handle_history(State(state): State<AppState>) -> Json<Vec<Sandwich>> {
-    let history = state.message_history.try_read().unwrap();
-    Json(history.iter().cloned().collect())
+    println!("history requested");
+    let snapshot = {
+        let history = state.message_history.try_read().unwrap();
+        history.iter().cloned().collect()
+    };
+    println!("history sent");
+    Json(snapshot)
 }
 
 async fn start_web_server(sender: broadcast::Sender<Sandwich>, message_history: Arc<RwLock<VecDeque<Sandwich>>>) {
@@ -578,7 +575,6 @@ async fn start_web_server(sender: broadcast::Sender<Sandwich>, message_history: 
     .await
     .unwrap();
 }
-
 
 #[tokio::main]
 async fn main() {
