@@ -1,7 +1,8 @@
-use std::{collections::{HashMap, VecDeque}, fmt::Debug, net::SocketAddr, str::FromStr, sync::{Arc, RwLock}};
+use std::{collections::{HashMap, VecDeque}, env, fmt::Debug, net::SocketAddr, str::FromStr, sync::{Arc, RwLock}};
 use axum::{extract::{ws::{Message, WebSocket}, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Json, Router};
 use dashmap::DashMap;
 use futures::{SinkExt, StreamExt};
+use mysql::{params, prelude::Queryable, Opts, Pool, TxOpts, Value};
 use serde::{ser::SerializeStruct, Serialize};
 
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
@@ -30,6 +31,36 @@ pub struct Swap {
     output_amount: u64,
     order: u64,
     sig: String,
+}
+
+#[derive(Clone)]
+struct DbBlock {
+    slot: u64,
+    ts: i64,
+    tx_count: usize,
+}
+
+#[derive(Clone)]
+enum DbMessage {
+    Block(DbBlock),
+    Sandwich(Sandwich),
+}
+
+#[derive(Clone)]
+enum SwapType {
+    Frontrun,
+    Victim,
+    Backrun,
+}
+
+impl Into<Value> for SwapType {
+    fn into(self) -> Value {
+        match self {
+            SwapType::Frontrun => Value::from("FRONTRUN"),
+            SwapType::Victim => Value::from("VICTIM"),
+            SwapType::Backrun => Value::from("BACKRUN"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -369,17 +400,17 @@ fn find_sandwiches(in_trades: &Vec<&Swap>, out_trades: &Vec<&Swap>, slot: u64, t
     sandwiches
 }
 
-async fn sandwich_finder(sender: mpsc::Sender<Sandwich>) {
+async fn sandwich_finder(sender: mpsc::Sender<Sandwich>, db_sender: mpsc::Sender<DbMessage>) {
     loop {
-        sandwich_finder_loop(sender.clone()).await;
+        sandwich_finder_loop(sender.clone(), db_sender.clone()).await;
         // reconnect in 5secs
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
     }
 }
 
-async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>) {
-    let rpc_url = "http://127.0.0.1:6969";
-    let grpc_url = "http://127.0.0.1:10000";
+async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>, db_sender: mpsc::Sender<DbMessage>) {
+    let rpc_url = env::var("RPC_URL").expect("RPC_URL is not set");
+    let grpc_url = env::var("GRPC_URL").expect("GRPC_URL is not set");
     let rpc_client = RpcClient::new_with_commitment(rpc_url.to_string(), CommitmentConfig::processed());
     let lut_cache = DashMap::new();
     println!("connecting to grpc server: {}", grpc_url);
@@ -427,6 +458,11 @@ async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>) {
                 let ts = block.block_time.unwrap().timestamp;
                 let slot = block.slot;
                 let mut bundle_count = 0;
+                db_sender.send(DbMessage::Block(DbBlock {
+                    slot,
+                    ts,
+                    tx_count: block.transactions.len(),
+                })).await.unwrap();
                 let futs = block.transactions.iter().filter_map(|tx| {
                     if tx.is_vote {
                         None
@@ -481,18 +517,22 @@ async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>) {
                     // look for 0-0-1 sandwiches (check #2)
                     find_sandwiches(dir0.1, dir1.1, slot, ts).iter().for_each(|sandwich| {
                         let sender = sender.clone();
+                        let db_sender = db_sender.clone();
                         let sandwich = sandwich.clone();
                         tokio::spawn(async move {
-                            sender.send(sandwich).await.unwrap();
+                            sender.send(sandwich.clone()).await.unwrap();
+                            db_sender.send(DbMessage::Sandwich(sandwich)).await.unwrap();
                         });
                         bundle_count += 1;
                     });
                     // look for 1-1-0 sandwiches (check #2)
                     find_sandwiches(dir1.1, dir0.1, slot, ts).iter().for_each(|sandwich| {
                         let sender = sender.clone();
+                        let db_sender = db_sender.clone();
                         let sandwich = sandwich.clone();
                         tokio::spawn(async move {
-                            sender.send(sandwich).await.unwrap();
+                            sender.send(sandwich.clone()).await.unwrap();
+                            db_sender.send(DbMessage::Sandwich(sandwich)).await.unwrap();
                         });
                         bundle_count += 1;
                     });
@@ -524,6 +564,58 @@ async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>) {
                 }).await;
             }
             _ => {}
+        }
+    }
+}
+
+async fn store_to_db(mut receiver: mpsc::Receiver<DbMessage>) {
+    let url = env::var("MYSQL").unwrap();
+    let pool = Pool::new(url.as_str()).unwrap();
+    let mut conn = pool.get_conn().unwrap();
+    let insert_block_stmt = conn.prep("insert into block (slot, timestamp, tx_count) values (?, ?, ?)").unwrap();
+    let insert_tx_stmt = conn.prep("insert into transaction (tx_hash, signer, slot, order_in_block) values (?, ?, ?, ?)").unwrap();
+    let insert_swap_stmt = conn.prep("insert into swap (sandwich_id, outer_program, inner_program, amm, subject, input_mint, output_mint, input_amount, output_amount, tx_id, swap_type) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").unwrap();
+
+    let mut tx_db_id_cache: HashMap<String, u64> = HashMap::new();
+    while let Some(msg) = receiver.recv().await {
+        match msg {
+            DbMessage::Block(block) => {
+                conn.exec_drop(&insert_block_stmt, (block.slot, block.ts, block.tx_count)).unwrap();
+            }
+            DbMessage::Sandwich(sandwich) => {
+                let mut dbtx = conn.start_transaction(TxOpts::default()).unwrap();
+                // obtain an id for this sandwich
+                dbtx.query_drop("insert into sandwich values ()").unwrap();
+                let sandwich_id = dbtx.last_insert_id();
+                let mut swaps = Vec::new();
+                swaps.push((&sandwich.frontrun, SwapType::Frontrun));
+                swaps.extend(sandwich.victim.iter().map(|x| (x, SwapType::Victim)));
+                swaps.push((&sandwich.backrun, SwapType::Backrun));
+                // figure out which txs are new to the db
+                let args: Vec<_> = swaps.iter().filter_map(|swap| {
+                    if tx_db_id_cache.contains_key(&swap.0.sig) {
+                        None
+                    } else {
+                        Some((&swap.0.sig, &swap.0.signer, sandwich.slot, swap.0.order))
+                    }
+                }).collect();
+                if !args.is_empty() {
+                    dbtx.exec_batch(&insert_tx_stmt, &args).unwrap();
+                    // populate the cache with a select
+                    let tx_hashes = args.iter().map(|(tx_hash, _, _, _)| tx_hash).collect::<Vec<_>>();
+                    let q_marks = tx_hashes.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+                    let stmt = dbtx.prep(format!("select id, tx_hash from transaction where tx_hash in ({q_marks})")).unwrap();
+                    let _ = dbtx.exec_map(&stmt, tx_hashes, |(id, tx_hash)| {
+                        tx_db_id_cache.insert(tx_hash, id);
+                    }).unwrap();
+                }
+                // insert the swaps in this sandwich into the db
+                dbtx.exec_batch(&insert_swap_stmt, swaps.iter().map(|swap| {
+                    let tx_id = tx_db_id_cache.get(&swap.0.sig).unwrap();
+                    (sandwich_id, swap.0.outer_program.as_deref(), swap.0.program.as_str(), swap.0.amm.as_str(), swap.0.subject.as_str(), swap.0.input_mint.as_str(), swap.0.output_mint.as_str(), swap.0.input_amount, swap.0.output_amount, tx_id, swap.1.clone())
+                })).unwrap();
+                dbtx.commit().unwrap();
+            }
         }
     }
 }
@@ -578,11 +670,14 @@ async fn start_web_server(sender: broadcast::Sender<Sandwich>, message_history: 
 
 #[tokio::main]
 async fn main() {
+    dotenv::dotenv().ok();
     let (sender, mut receiver) = mpsc::channel::<Sandwich>(100);
-    tokio::spawn(sandwich_finder(sender));
+    let (db_sender, mut db_receiver) = mpsc::channel::<DbMessage>(100);
+    tokio::spawn(sandwich_finder(sender, db_sender));
     let message_history = Arc::new(RwLock::new(VecDeque::<Sandwich>::with_capacity(100)));
     let (sender, _) = broadcast::channel::<Sandwich>(100);
     tokio::spawn(start_web_server(sender.clone(), message_history.clone()));
+    tokio::spawn(store_to_db(db_receiver));
     while let Some(message) = receiver.recv().await {
         // println!("Received: {:?}", message);
         let mut hist = message_history.write().unwrap();
