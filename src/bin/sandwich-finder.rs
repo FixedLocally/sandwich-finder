@@ -420,7 +420,7 @@ async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>, db_sender: mpsc::S
         x_request_snapshot: false,
         send_compressed: None,
         accept_compressed: None,
-        max_decoding_message_size: Some(64 * 1024 * 1024),
+        max_decoding_message_size: Some(128 * 1024 * 1024),
         max_encoding_message_size: None,
     }.connect().await.expect("cannon connect to grpc server");
     println!("connected to grpc server!");
