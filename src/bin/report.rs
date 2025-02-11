@@ -2,12 +2,19 @@ use std::{collections::HashMap, env, time};
 
 use mysql::{prelude::Queryable, Pool};
 
-fn conf_interval(n: f64, k: f64) -> (f64, f64) {
-    let z = 3.89059188641; // p-value 0.0001
+const Z: f64 = 3.89059188641; // p-value 0.0001
+
+fn p_conf_interval(n: f64, k: f64) -> (f64, f64) {
     let p = k / n;
-    let a = (p + z * z / (2.0 * n)) / (1.0 + z * z / n);
-    let b = z / (1.0 + z * z / n) * (p * (1.0 - p) / n + z * z / (4.0 * n * n)).sqrt();
+    let a = (p + Z * Z / (2.0 * n)) / (1.0 + Z * Z / n);
+    let b = Z / (1.0 + Z * Z / n) * (p * (1.0 - p) / n + Z * Z / (4.0 * n * n)).sqrt();
     (a - b, a + b)
+}
+
+fn count_conf_interval(mu: f64, stdev: f64, n: f64) -> (f64, f64) {
+    let a = mu - Z * stdev / n.sqrt();
+    let b = mu + Z * stdev / n.sqrt();
+    (a, b)
 }
 
 /// Sandwicher-colluder report
@@ -27,7 +34,7 @@ fn main() {
     let pool = Pool::new(mysql_url.as_str()).unwrap();
     let mut conn = pool.get_conn().unwrap();
     eprintln!("[+{:7}ms] Connected to MySQL", now.elapsed().as_millis());
-    let slot_range = (318555120, 319362852);
+    let slot_range = (318555120, 319912807);
     let offset_range = vec![0.2, 1.0, 0.6, 0.4, 0.2];
     // fetch leaders within the concerned slot range to serve as the basis of normalisation
     let leader_count = conn.exec_fold("select leader, count(*) from leader_schedule where slot between ? and ? group by leader", slot_range, HashMap::new(), |mut acc, row: (String, u64)| {
@@ -36,6 +43,19 @@ fn main() {
         acc
     }).unwrap();
     eprintln!("[+{:7}ms] Consolidated leader schedule", now.elapsed().as_millis());
+    // mean and sd of sandwiches per slot
+    let n = slot_range.1 - slot_range.0;
+    let mut sx = 0.0;
+    let mut sxx = 0.0;
+    conn.exec_iter("SELECT count(*) FROM `sandwich_slot` where slot between ? and ? group by slot;", slot_range).unwrap().for_each(|row| {
+        let count: i32 = mysql::from_row(row.unwrap());
+        let x = count as f64;
+        sx += x;
+        sxx += x * x;
+    });
+    let mean = sx / n as f64;
+    let stdev = (sxx / n as f64 - mean * mean).sqrt();
+    eprintln!("[+{:7}ms] Consolidated frequencies", now.elapsed().as_millis());
     // raw score calculations (sandwiches in leader slot with offset to account for tx delay)
     let offset_stmt = conn.prep("select l.leader, count(*) from (SELECT slot-? as slot FROM `sandwich_slot`) t1, leader_schedule l where t1.slot=l.slot and t1.slot between ? and ? group by l.leader;").unwrap();
     let presence_offset_stmt = conn.prep("select l.leader, count(*) from (SELECT distinct slot-? as slot FROM `sandwich_slot`) t1, leader_schedule l where t1.slot=l.slot and t1.slot between ? and ? group by l.leader;").unwrap();
@@ -90,9 +110,11 @@ fn main() {
     let w_sc_p = total_presence_score as f64 / (slot_range.1 - slot_range.0) as f64 / norm_factor;
     let w_sc = total_score as f64 / (slot_range.1 - slot_range.0) as f64 / norm_factor;
     for (leader, sc, sc_p, rsc, rsc_p, slots) in entries.iter() {
-        let (lb, ub) = conf_interval(*slots as f64, *rsc_p);
-        println!("{:45}: {:7.3} {:7.3} {:7.3} {:7.3} {:7} {:7.5} {:7.5} {}", leader, sc, sc_p, rsc, rsc_p, slots, lb, ub, if lb > w_sc_p { "!!" } else { "" });
+        let (lb, ub) = p_conf_interval(*slots as f64, *rsc_p);
+        let (n_lb, n_ub) = count_conf_interval(mean, stdev as f64, *slots as f64);
+        println!("{:45}: {:7.3} {:7.3} {:8.3} {:8.3} {:7} {:8.5} {:8.5} {} {:8.5} {:8.5} {}", leader, sc, sc_p, rsc, rsc_p, slots, lb, ub, if lb > w_sc_p { "!!" } else { "  " }, n_lb, n_ub, if n_ub < **sc { "!!" } else { "  " });
     }
     println!("Weighted avg Sc_p: {:.5}", w_sc_p);
     println!("Weighted avg Sc: {:.5}", w_sc);
+    println!("Global stdev: {:.5}", stdev);
 }

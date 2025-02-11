@@ -2,7 +2,7 @@ use std::{collections::{HashMap, VecDeque}, env, fmt::Debug, net::SocketAddr, st
 use axum::{extract::{ws::{Message, WebSocket}, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Json, Router};
 use dashmap::DashMap;
 use futures::{SinkExt, StreamExt};
-use mysql::{params, prelude::Queryable, Opts, Pool, TxOpts, Value};
+use mysql::{prelude::Queryable, Pool, TxOpts, Value};
 use serde::{ser::SerializeStruct, Serialize};
 
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
