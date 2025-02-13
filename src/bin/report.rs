@@ -138,7 +138,7 @@ async fn main() {
             Some(v) => (v.vote_pubkey.clone().unwrap_or("".to_string()), v.name.clone().unwrap_or("".to_string())),
             None => ("".to_string(), "".to_string())
         };
-        println!("{},{},{},{},{},{},{},{},{},{},{},{},{},{}", leader, vote, name, sc, sc_p, rsc, rsc_p, slots, lb, ub, lb > w_sc_p, n_lb, n_ub, n_ub < **sc);
+        println!("{},{},\"{}\",{},{},{},{},{},{},{},{},{},{},{}", leader, vote, name.replace("\"", "\"\""), sc, sc_p, rsc, rsc_p, slots, lb, ub, lb > w_sc_p, n_lb, n_ub, n_ub < **sc);
     }
     println!("Weighted avg Sc_p: {:.5}", w_sc_p);
     println!("Weighted avg Sc: {:.5}", w_sc);
