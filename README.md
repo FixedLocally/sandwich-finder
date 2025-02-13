@@ -1,19 +1,39 @@
 # Solana Sandwich Finder
 ## Overview
-```
-Slot range          [318555120, 320319077]
-Stake pool dsitribution (Epoch 741):
-Pool                Stake (SOL)  Pool Share
-Marinade (overall)  5,296,455        57.18%
- - Marinade Liquid  3,084,542        62.09%
- - Marinade Native  2,211,912        51.50%
-Jito                4,252,432        27.70%
-xSHIN                 139,469        14.20%
-JPool                 140,220        13.81%
-SFDP                3,338,093         9.13%
-BlazeStake             39,230         3.51%
-The Vault              11,469         0.90%
-```
+Slot range:[318555120, 320319077]
+### Global Metrics
+|Metric|Value|
+|---|---|
+|Proportion of sandwich-inclusive block|11.373%|
+|Average sandwiches per block|0.16050|
+|Standard Deviation of sandwiches per block|0.83227|
+
+
+### Stake pool dsitribution (Epoch 741):
+|Pool|Stake (SOL)|Pool Share|
+|---|---|---|
+|Marinade (overall)|5,296,455|57.18%|
+| - Marinade Liquid|3,084,542|62.09%|
+| - Marinade Native|2,211,912|51.50%|
+|Jito|4,252,432|27.70%|
+|xSHIN|139,469|14.20%|
+|JPool|140,220|13.81%|
+|SFDP|3,338,093|9.13%|
+|BlazeStake|39,230|3.51%|
+|The Vault|11,469|0.90%|
+
+### Honourable Mention
+These are hand-picked, visible to the naked eye colluders.
+|Validator|Stake|Observed Leader Blocks|Weighted Sandwich-inclusive blocks|Weighted Sandwiches|
+|---|---|---|---|---|
+|P2P.org|6,330,057|23,752|6,942.75|9,127.25|
+|StakeHaus - 0% Fee on Rewards/MEV|1,991,967|8,036|1,670|2,229.42|
+|AG 0% fee + ALL MEV profit share|1,549,042|6,404|1,743.33|2,279.75|
+|Allnodes ⚡️ 0% fee|1,206,244|4,968|1,616.75|2,197.42|
+|Private GRt2...LXV8|1,192,153|4,776|1,401|1,846.25|
+|HM5H...dMRA|1,143,218|4,336|1,260.75|1,686.25|
+|Chorus One|862,361|3,308|988.33|1,285.92|
+
 ## Preface
 Sandwiching refers to the action of forcing the earlier inclusion of a transaction (frontrun) before a transaction published earlier (victim), with another transaction after the victim transaction to realise a profit (backrun), while abusing the victim's slippage settings. We define a sandwich as "a set of transactions that include exactly one frontrun and exactly one backrun transaction, as well as at least one victim transaction", a sandwicher as "a party that sandwiches", and a colluder as "a validator that forwards transactions they receive to a sandwicher".
 
