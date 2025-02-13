@@ -140,8 +140,8 @@ async fn main() {
         };
         println!("{},{},\"{}\",{},{},{},{},{},{},{},{},{},{},{}", leader, vote, name.replace("\"", "\"\""), sc, sc_p, rsc, rsc_p, slots, lb, ub, lb > w_sc_p, n_lb, n_ub, n_ub < **sc);
     }
-    println!("Weighted avg Sc_p: {:.5}", w_sc_p);
-    println!("Weighted avg Sc: {:.5}", w_sc);
-    println!("Global stdev: {:.5}", stdev);
-    println!("Slot range: {:?} ({})", slot_range, slot_range.1 - slot_range.0 + 1);
+    println!("Weighted avg Sc_p,{:.5},,,,,,,,,,,,", w_sc_p);
+    println!("Weighted avg Sc,{:.5},,,,,,,,,,,,", w_sc);
+    println!("Global stdev,{:.5},,,,,,,,,,,,", stdev);
+    println!("Slot count,{},,,,,,,,,,,,", slot_range.1 - slot_range.0 + 1);
 }
