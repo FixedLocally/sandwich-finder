@@ -72,3 +72,6 @@ For the sandwiches per block metric, the mean and standard deviation of the clus
 Validators satisfying the alternative hypothesis, signaling collusion for an extended period, will be flagged.
 
 For flagging on [Hanabi Staking's dashboard](https://hanabi.so/marinade-stake-selling), flagged validators with fewer than 50 blocks as well as those only exceeding the thresholds marginally but reputable are excluded.
+
+## Dataset Access
+For dataset access, [join the Hanabi Staking Discord](https://discord.gg/VpJuWFRJfb) and open a ticket.
