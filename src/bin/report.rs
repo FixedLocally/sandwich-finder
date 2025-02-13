@@ -1,6 +1,8 @@
 use std::{collections::HashMap, env, time};
 
 use mysql::{prelude::Queryable, Pool};
+use serde::Deserialize;
+use tokio::task::JoinHandle;
 
 const Z: f64 = 3.89059188641; // p-value 0.0001
 
@@ -17,6 +19,14 @@ fn count_conf_interval(mu: f64, stdev: f64, n: f64) -> (f64, f64) {
     (a, b)
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ValidatorInfo {
+    pub identity: String,
+    pub vote_pubkey: Option<String>,
+    pub name: Option<String>,
+}
+
 /// Sandwicher-colluder report
 /// The main metrics we're looking for here are sandwiches per slot (Sc) and proportion of slots with sandwiches (Sc_p),
 /// and our hypothesis is that colluders will have a higher value in both values, compared to the cluster average.
@@ -27,11 +37,17 @@ fn count_conf_interval(mu: f64, stdev: f64, n: f64) -> (f64, f64) {
 /// Since txs may take a couple slots to land (sent to a colluder but landed after the colluder's leader slots), leaders
 /// of prior slots (`offset_range`) will also be credited for any given sandwich. Ideally, slots farther away should receive
 /// less credits, and the exact distribution should resemble that of the actual latency of sandwichable txs, but that's unimplemented for now.
-fn main() {
+#[tokio::main]
+async fn main() {
     dotenv::dotenv().ok();
     let mut args = env::args();
     args.next(); // argv[0]
     let slot_range: (i64, i64) = (args.next().unwrap().parse().unwrap(), args.next().unwrap().parse().unwrap());
+    let validator_info_fut: JoinHandle<Vec<ValidatorInfo>> = tokio::spawn(async move {
+        let resp = reqwest::get("https://hanabi.so/api/validators/info").await.unwrap();
+        let text = resp.text().await.unwrap();
+        serde_json::from_str(&text).unwrap()
+    });
     let now = time::Instant::now();
     let mysql_url = env::var("MYSQL").unwrap();
     let pool = Pool::new(mysql_url.as_str()).unwrap();
@@ -107,14 +123,22 @@ fn main() {
         let b = (b.2, b.1);
         b.partial_cmp(&a).unwrap()
     });
+    // wait for validator info
+    let validator_info = validator_info_fut.await.unwrap();
+    let validator_info = validator_info.into_iter().map(|v| (v.identity.clone(), v)).collect::<HashMap<String, ValidatorInfo>>();
     // print report
-    println!("{:45}: {:7} {:7} {:7} {:7} {:7}", "Leader", "Sc", "Sc_p", "R-Sc", "R-Sc_p", "Slots");
+    println!("{},{},{},{},{},{},{},{},{},{},{},{},{},{}", "leader", "vote", "name", "Sc", "Sc_p", "R-Sc", "R-Sc_p", "slots", "Sc_p_lb", "Sc_p_ub", "Sc_p_flag", "Sc_lb", "Sc_ub", "Sc_flag");
     let w_sc_p = total_presence_score as f64 / (slot_range.1 - slot_range.0) as f64 / norm_factor;
     let w_sc = total_score as f64 / (slot_range.1 - slot_range.0) as f64 / norm_factor;
     for (leader, sc, sc_p, rsc, rsc_p, slots) in entries.iter() {
         let (lb, ub) = p_conf_interval(*slots as f64, *rsc_p);
         let (n_lb, n_ub) = count_conf_interval(mean, stdev as f64, *slots as f64);
-        println!("{:45}: {:7.3} {:7.3} {:8.3} {:8.3} {:7} {:8.5} {:8.5} {} {:8.5} {:8.5} {}", leader, sc, sc_p, rsc, rsc_p, slots, lb, ub, if lb > w_sc_p { "!!" } else { "  " }, n_lb, n_ub, if n_ub < **sc { "!!" } else { "  " });
+        let entry = validator_info.get(*leader);
+        let (vote, name) = match entry {
+            Some(v) => (v.vote_pubkey.clone().unwrap_or("".to_string()), v.name.clone().unwrap_or("".to_string())),
+            None => ("".to_string(), "".to_string())
+        };
+        println!("{},{},{},{},{},{},{},{},{},{},{},{},{},{}", leader, vote, name, sc, sc_p, rsc, rsc_p, slots, lb, ub, lb > w_sc_p, n_lb, n_ub, n_ub < **sc);
     }
     println!("Weighted avg Sc_p: {:.5}", w_sc_p);
     println!("Weighted avg Sc: {:.5}", w_sc);
