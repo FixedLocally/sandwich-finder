@@ -29,12 +29,14 @@ fn count_conf_interval(mu: f64, stdev: f64, n: f64) -> (f64, f64) {
 /// less credits, and the exact distribution should resemble that of the actual latency of sandwichable txs, but that's unimplemented for now.
 fn main() {
     dotenv::dotenv().ok();
+    let mut args = env::args();
+    args.next(); // argv[0]
+    let slot_range: (i64, i64) = (args.next().unwrap().parse().unwrap(), args.next().unwrap().parse().unwrap());
     let now = time::Instant::now();
     let mysql_url = env::var("MYSQL").unwrap();
     let pool = Pool::new(mysql_url.as_str()).unwrap();
     let mut conn = pool.get_conn().unwrap();
     eprintln!("[+{:7}ms] Connected to MySQL", now.elapsed().as_millis());
-    let slot_range = (318555120, 319912807);
     let offset_range = vec![0.2, 1.0, 0.6, 0.4, 0.2];
     // fetch leaders within the concerned slot range to serve as the basis of normalisation
     let leader_count = conn.exec_fold("select leader, count(*) from leader_schedule where slot between ? and ? group by leader", slot_range, HashMap::new(), |mut acc, row: (String, u64)| {
@@ -43,6 +45,11 @@ fn main() {
         acc
     }).unwrap();
     eprintln!("[+{:7}ms] Consolidated leader schedule", now.elapsed().as_millis());
+    conn.exec_drop("drop table if exists sandwich_slot", ()).unwrap();
+    conn.exec_drop("create table sandwich_slot (select s.sandwich_id, min(t.slot) as slot from swap s, `transaction` t where s.tx_id=t.id group by s.sandwich_id);", ()).unwrap();
+    conn.exec_drop("ALTER TABLE `sandwich_slot` CHANGE `slot` `slot` BIGINT(20) NOT NULL; ", ()).unwrap();
+    conn.exec_drop("ALTER TABLE `sandwich_slot` ADD INDEX(`slot`); ", ()).unwrap();
+    eprintln!("[+{:7}ms] Created temp tables", now.elapsed().as_millis());
     // mean and sd of sandwiches per slot
     let n = slot_range.1 - slot_range.0;
     let mut sx = 0.0;
@@ -63,11 +70,6 @@ fn main() {
     let mut presence_scores: HashMap<String, f64> = HashMap::new();
     let mut total_score = 0.0;
     let mut total_presence_score = 0.0;
-    conn.exec_drop("drop table if exists sandwich_slot", ()).unwrap();
-    conn.exec_drop("create table sandwich_slot (select s.sandwich_id, min(t.slot) as slot from swap s, `transaction` t where s.tx_id=t.id group by s.sandwich_id);", ()).unwrap();
-    conn.exec_drop("ALTER TABLE `sandwich_slot` CHANGE `slot` `slot` BIGINT(20) NOT NULL; ", ()).unwrap();
-    conn.exec_drop("ALTER TABLE `sandwich_slot` ADD INDEX(`slot`); ", ()).unwrap();
-    eprintln!("[+{:7}ms] Created temp tables", now.elapsed().as_millis());
     for i in 0..offset_range.len() {
         conn.exec_iter(&offset_stmt, (i, slot_range.0, slot_range.1)).unwrap().for_each(|row| {
             let (leader, count): (String, i32) = mysql::from_row(row.unwrap());
@@ -117,4 +119,5 @@ fn main() {
     println!("Weighted avg Sc_p: {:.5}", w_sc_p);
     println!("Weighted avg Sc: {:.5}", w_sc);
     println!("Global stdev: {:.5}", stdev);
+    println!("Slot range: {:?} ({})", slot_range, slot_range.1 - slot_range.0 + 1);
 }
