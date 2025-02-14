@@ -73,5 +73,19 @@ Validators satisfying the alternative hypothesis, signaling collusion for an ext
 
 For flagging on [Hanabi Staking's dashboard](https://hanabi.so/marinade-stake-selling), flagged validators with fewer than 50 blocks as well as those only exceeding the thresholds marginally but reputable are excluded.
 
+## Report Interpretation
+The reports consist of 14 columns and their meanings are as follows:
+|Column(s)|Meaning|
+|---|---|
+|leader/vote|The validator's identity and vote account pubkeys|
+|name|The validator's name according to onchain data|
+|Sc|"Score", normalised weighted number of sandwiches|
+|Sc_p|"Presence score", normalised number of blocks with sandwiches, which roughly means proportion of sandwich inclusive blocks|
+|R-Sc/R-Sc_p|Unnormalised Sc and Sc_p|
+|slots|Number of leader slots observed for the validator|
+|Sc_p_{lb\|ub}|Bounds of the confidence interval of the validator's true proportion of sandwich inclusive blocks. Flagged if the lower bound is above the cluster mean|
+|Sc_{lb\|ub}|Bounds of the confidence interval of which the validator is considered to have an "average" number of sandwiches per block. Flagged if Sc_p is above the upper bound|
+{Sc_p\|Sc}_flag|True if the validator is being flagged due to the respective metric, false otherwise|
+
 ## Dataset Access
 For dataset access, [join the Hanabi Staking Discord](https://discord.gg/VpJuWFRJfb) and open a ticket.
