@@ -14,6 +14,9 @@ use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentL
 const RAYDIUM_V4_PUBKEY: Pubkey = Pubkey::from_str_const("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
 const RAYDIUM_V5_PUBKEY: Pubkey = Pubkey::from_str_const("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
 const PDF_PUBKEY: Pubkey = Pubkey::from_str_const("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P");
+const WHIRLPOOL_PUBKEY: Pubkey = Pubkey::from_str_const("whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc");
+const DLMM_PUBKEY: Pubkey = Pubkey::from_str_const("LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo");
+const METEORA_PUBKEY: Pubkey = Pubkey::from_str_const("Eo7WjKq67rjJQSZxS6z3YkapzY3eMj6Xy8X5EQVn5UaB");
 
 const WSOL_PUBKEY: Pubkey = Pubkey::from_str_const("So11111111111111111111111111111111111111112");
 
@@ -197,21 +200,25 @@ fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pub
     if ix.program_id == *swap_program && ix.data.len() == data_len && ix.data[0..discriminant.len()] == *discriminant {
         let send_inner_ix = &inner_ix.instructions[send_ix_index - 1];
         let recv_inner_ix = &inner_ix.instructions[recv_ix_index - 1];
-        let input = find_transferred_token(send_inner_ix, meta).unwrap();
-        let output = find_transferred_token(recv_inner_ix, meta).unwrap();
-        swaps.push(Swap {
-            outer_program: None,
-            program: ix.program_id.to_string(),
-            amm: ix.accounts[amm_index].pubkey.to_string(),
-            signer: account_keys[0].to_string(),
-            subject: account_keys[input.1 as usize].to_string(),
-            input_mint: input.0.to_string(),
-            output_mint: output.0.to_string(),
-            input_amount: input.2,
-            output_amount: output.2,
-            sig: sig.clone(),
-            order: tx_index,
-        });
+        let input = find_transferred_token(send_inner_ix, meta);
+        let output = find_transferred_token(recv_inner_ix, meta);
+        if let Some(input) = input {
+            if let Some(output) = output {
+                swaps.push(Swap {
+                    outer_program: None,
+                    program: ix.program_id.to_string(),
+                    amm: ix.accounts[amm_index].pubkey.to_string(),
+                    signer: account_keys[0].to_string(),
+                    subject: account_keys[input.1 as usize].to_string(),
+                    input_mint: input.0.to_string(),
+                    output_mint: output.0.to_string(),
+                    input_amount: input.2,
+                    output_amount: output.2,
+                    sig: sig.clone(),
+                    order: tx_index,
+                });
+            }
+        }
     }
     // loop thru the inner ixs to find a swap
     inner_ix.instructions.iter().enumerate().for_each(|(j, inner)| {
@@ -222,21 +229,25 @@ fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pub
             }
             let send_inner_ix = &inner_ix.instructions[j + send_ix_index];
             let recv_inner_ix = &inner_ix.instructions[j + recv_ix_index];
-            let input = find_transferred_token(send_inner_ix, meta).unwrap();
-            let output = find_transferred_token(recv_inner_ix, meta).unwrap();
-            swaps.push(Swap {
-                outer_program: Some(ix.program_id.to_string()),
-                program: program_id.to_string(),
-                amm: account_keys[inner.accounts[amm_index] as usize].to_string(),
-                signer: account_keys[0].to_string(),
-                subject: account_keys[input.1 as usize].to_string(),
-                input_mint: input.0.to_string(),
-                output_mint: output.0.to_string(),
-                input_amount: input.2,
-                output_amount: output.2,
-                sig: sig.clone(),
-                order: tx_index,
-            });
+            let input = find_transferred_token(send_inner_ix, meta);
+            let output = find_transferred_token(recv_inner_ix, meta);
+            if let Some(input) = input {
+                if let Some(output) = output {
+                    swaps.push(Swap {
+                        outer_program: Some(ix.program_id.to_string()),
+                        program: program_id.to_string(),
+                        amm: account_keys[inner.accounts[amm_index] as usize].to_string(),
+                        signer: account_keys[0].to_string(),
+                        subject: account_keys[input.1 as usize].to_string(),
+                        input_mint: input.0.to_string(),
+                        output_mint: output.0.to_string(),
+                        input_amount: input.2,
+                        output_amount: output.2,
+                        sig: sig.clone(),
+                        order: tx_index,
+                    });
+                }
+            }
         }
     });
     swaps
@@ -328,11 +339,21 @@ async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &RpcClie
                     ixs.iter().enumerate().for_each(|(i, ix)| {
                         let inner_ix = inner_ix_map.get(&i);
                         if let Some(inner_ix) = inner_ix {
+                            // ray v4 swap
                             swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V4_PUBKEY, &[0x09], 1, 1, 2, 17, meta, &account_keys, sig.clone(), raw_tx.index));
+                            // ray v5 swap_base_input/swap_base_output
                             swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x8f, 0xbe, 0x5a, 0xda, 0xc4, 0x1e, 0x33, 0xde], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
                             swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x37, 0xd9, 0x62, 0x56, 0xa3, 0x4a, 0xb4, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            // pdf buy/sell
                             swaps.extend(find_swaps(ix, inner_ix, &PDF_PUBKEY, &[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea], 3, 2, 1, 24, meta, &account_keys, sig.clone(), raw_tx.index));
                             swaps.extend(find_swaps(ix, inner_ix, &PDF_PUBKEY, &[0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            // whirlpool swap
+                            swaps.extend(find_swaps(ix, inner_ix, &WHIRLPOOL_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 2, 1, 2, 42, meta, &account_keys, sig.clone(), raw_tx.index));
+                            // dlmm swap
+                            swaps.extend(find_swaps(ix, inner_ix, &DLMM_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            // meteora swap (swap, (charge_fee),  deposit, send, mint_lp, withdraw, recv, burn_lp)
+                            swaps.extend(find_swaps(ix, inner_ix, &METEORA_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 2, 5, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &METEORA_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 3, 6, 24, meta, &account_keys, sig.clone(), raw_tx.index));
                         }                        
                     });
                     return Some(DecompiledTransaction {
@@ -478,6 +499,7 @@ async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>, db_sender: mpsc::S
                         None
                     }
                 }).collect::<Vec<&DecompiledTransaction>>();
+                let swap_count = block_txs.iter().map(|tx| tx.swaps.len()).sum::<usize>();
                 block_txs.sort_by_key(|x| x.order);
                 // criteria for sandwiches:
                 // 1. has 3 txs of strictly increasing inclusion order (frontrun-victim-backrun)
@@ -537,7 +559,7 @@ async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>, db_sender: mpsc::S
                         bundle_count += 1;
                     });
                 });
-                println!("block {} processed in {}us, {} bundles found", block.slot, now.elapsed().as_micros(), bundle_count);
+                println!("block {} processed in {}us, {} swaps found, {} bundles found", block.slot, now.elapsed().as_micros(), swap_count, bundle_count);
             }
             Some(UpdateOneof::Account(account)) => {
                 if let Some(account_info) = account.account {
@@ -657,7 +679,8 @@ async fn start_web_server(sender: broadcast::Sender<Sandwich>, message_history: 
             message_history,
             sender,
         });
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:11000")
+    let api_port = env::var("API_PORT").unwrap_or_else(|_| "11000".to_string());
+    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{api_port}"))
         .await
         .unwrap();
     axum::serve(
@@ -672,7 +695,7 @@ async fn start_web_server(sender: broadcast::Sender<Sandwich>, message_history: 
 async fn main() {
     dotenv::dotenv().ok();
     let (sender, mut receiver) = mpsc::channel::<Sandwich>(100);
-    let (db_sender, mut db_receiver) = mpsc::channel::<DbMessage>(100);
+    let (db_sender, db_receiver) = mpsc::channel::<DbMessage>(100);
     tokio::spawn(sandwich_finder(sender, db_sender));
     let message_history = Arc::new(RwLock::new(VecDeque::<Sandwich>::with_capacity(100)));
     let (sender, _) = broadcast::channel::<Sandwich>(100);
