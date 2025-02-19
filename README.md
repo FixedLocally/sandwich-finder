@@ -1,38 +1,38 @@
 # Solana Sandwich Finder
 ## Overview
-Slot range:[318555120, 320319077]
+Slot range: [318555120, 321579119]
 ### Global Metrics
 |Metric|Value|
 |---|---|
-|Proportion of sandwich-inclusive block|11.373%|
-|Average sandwiches per block|0.16050|
-|Standard Deviation of sandwiches per block|0.83227|
+|Proportion of sandwich-inclusive block|9.249%|
+|Average sandwiches per block|0.12808|
+|Standard Deviation of sandwiches per block|0.68733|
 
 
-### Stake pool dsitribution (Epoch 741):
+### Stake pool dsitribution (Epoch 744):
 |Pool|Stake (SOL)|Pool Share|
 |---|---|---|
-|Marinade (overall)|5,296,455|57.18%|
-| - Marinade Liquid|3,084,542|62.09%|
-| - Marinade Native|2,211,912|51.50%|
-|Jito|4,252,432|27.70%|
-|xSHIN|139,469|14.20%|
-|JPool|140,220|13.81%|
-|SFDP|3,338,093|9.13%|
-|BlazeStake|39,230|3.51%|
-|The Vault|11,469|0.90%|
+|Marinade (overall)|5,933,057|63.34%|
+| - Marinade Liquid|3,160,033|63.40%|
+| - Marinade Native|2,773,024|63.27%|
+|Jito|4,819,257|31.56%|
+|xSHIN|217,805|21.20%|
+|JPool|134,813|13.32%|
+|SFDP|4,511,942|11.31%|
+|BlazeStake|54,858|4.74%|
+|The Vault|11,491|0.81%|
 
 ### Honourable Mention
 These are hand-picked, visible to the naked eye colluders.
 |Validator|Stake|Observed Leader Blocks|Weighted Sandwich-inclusive blocks|Weighted Sandwiches|
 |---|---|---|---|---|
-|P2P.org|6,330,057|23,752|6,942.75|9,127.25|
-|StakeHaus - 0% Fee on Rewards/MEV|1,991,967|8,036|1,670|2,229.42|
-|AG 0% fee + ALL MEV profit share|1,549,042|6,404|1,743.33|2,279.75|
-|Allnodes ⚡️ 0% fee|1,206,244|4,968|1,616.75|2,197.42|
-|Private GRt2...LXV8|1,192,153|4,776|1,401|1,846.25|
-|HM5H...dMRA|1,143,218|4,336|1,260.75|1,686.25|
-|Chorus One|862,361|3,308|988.33|1,285.92|
+|P2P.org|6,017,621|44,676|9,046.42|11,725.83|
+|StakeHaus - 0% Fee on Rewards/MEV|1,994,455|14,916|2,396.83|3,183.67|
+|AG 0% fee + ALL MEV profit share|1,540,639|11,700|2,546.5|3,271.5|
+|Allnodes ⚡️ 0% fee|1,199,941|9,084|2,015.17|2,707.5|
+|Private GRt2...LXV8|1,192,153|9,032|1,815.92|2,348.92|
+|HM5H...dMRA|1,146,024|8,232|1,879.42|2,447.67|
+|Chorus One|823,897|6,232|1,253.42|1,618.75|
 
 ## Preface
 Sandwiching refers to the action of forcing the earlier inclusion of a transaction (frontrun) before a transaction published earlier (victim), with another transaction after the victim transaction to realise a profit (backrun), while abusing the victim's slippage settings. We define a sandwich as "a set of transactions that include exactly one frontrun and exactly one backrun transaction, as well as at least one victim transaction", a sandwicher as "a party that sandwiches", and a colluder as "a validator that forwards transactions they receive to a sandwicher".
