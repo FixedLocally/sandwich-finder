@@ -13,6 +13,7 @@ use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentL
 
 const RAYDIUM_V4_PUBKEY: Pubkey = Pubkey::from_str_const("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
 const RAYDIUM_V5_PUBKEY: Pubkey = Pubkey::from_str_const("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
+const RAYDIUM_LP_PUBKEY: Pubkey = Pubkey::from_str_const("LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj");
 const PDF_PUBKEY: Pubkey = Pubkey::from_str_const("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P");
 const PDF2_PUBKEY: Pubkey = Pubkey::from_str_const("pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA");
 const WHIRLPOOL_PUBKEY: Pubkey = Pubkey::from_str_const("whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc");
@@ -345,6 +346,9 @@ async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &RpcClie
                             // ray v5 swap_base_input/swap_base_output
                             swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x8f, 0xbe, 0x5a, 0xda, 0xc4, 0x1e, 0x33, 0xde], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
                             swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x37, 0xd9, 0x62, 0x56, 0xa3, 0x4a, 0xb4, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            // ray launchpad buy_exact_in/sell_exact_in
+                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0xfa, 0xea, 0x0d, 0x7b, 0xd5, 0x9c, 0x13, 0xec], 4, 2, 3, 32, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x95, 0x27, 0xde, 0x9b, 0xd3, 0x7c, 0x98, 0x1a], 4, 2, 3, 32, meta, &account_keys, sig.clone(), raw_tx.index));
                             // pdf buy/sell
                             swaps.extend(find_swaps(ix, inner_ix, &PDF_PUBKEY, &[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea], 3, 2, 1, 24, meta, &account_keys, sig.clone(), raw_tx.index));
                             swaps.extend(find_swaps(ix, inner_ix, &PDF_PUBKEY, &[0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
