@@ -22,6 +22,9 @@ const METEORA_PUBKEY: Pubkey = Pubkey::from_str_const("Eo7WjKq67rjJQSZxS6z3Ykapz
 
 const WSOL_PUBKEY: Pubkey = Pubkey::from_str_const("So11111111111111111111111111111111111111112");
 
+const DONT_FRONT_START: [u8; 32] = [10,241,195,67,33,136,202,58,99,81,53,161,58,24,149,26,206,189,41,230,172,45,174,103,255,219,6,215,64,0,0,0];
+const DONT_FRONT_END: [u8; 32]   = [10,241,195,67,33,136,202,58,99,82,11,83,236,186,243,27,60,23,98,46,152,130,58,175,28,197,174,53,128,0,0,0];
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Swap {
@@ -36,6 +39,7 @@ pub struct Swap {
     output_amount: u64,
     order: u64,
     sig: String,
+    dont_front: bool,
 }
 
 #[derive(Clone)]
@@ -196,7 +200,7 @@ fn find_transferred_token(ix: &InnerInstruction, meta: &TransactionStatusMeta) -
     }).next();
 }
 
-fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pubkey, discriminant: &[u8], amm_index: usize, send_ix_index: usize, recv_ix_index: usize, data_len: usize, meta: &TransactionStatusMeta, account_keys: &Vec<Pubkey>, sig: String, tx_index: u64) -> Vec<Swap> {
+fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pubkey, discriminant: &[u8], amm_index: usize, send_ix_index: usize, recv_ix_index: usize, data_len: usize, meta: &TransactionStatusMeta, account_keys: &Vec<Pubkey>, sig: String, tx_index: u64, dont_front: bool) -> Vec<Swap> {
     let mut swaps: Vec<Swap> = Vec::new();
     // case 1
     if ix.program_id == *swap_program && ix.data.len() == data_len && ix.data[0..discriminant.len()] == *discriminant {
@@ -218,6 +222,7 @@ fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pub
                     output_amount: output.2,
                     sig: sig.clone(),
                     order: tx_index,
+                    dont_front,
                 });
             }
         }
@@ -247,6 +252,7 @@ fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pub
                         output_amount: output.2,
                         sig: sig.clone(),
                         order: tx_index,
+                        dont_front,
                     });
                 }
             }
@@ -318,6 +324,9 @@ async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &RpcClie
                             data: ix.data.clone(),
                         }
                     }).collect::<Vec<Instruction>>();
+
+                    // don't front flag - if the tx contains a pubkey that starts with jitodontfront, which is pubkeys within [DONT_FRONT_START, DONT_FRONT_END)
+                    let dont_front = account_keys.iter().any(|k| k.to_bytes() >= DONT_FRONT_START && k.to_bytes() < DONT_FRONT_END);
                     
                     // find swaps from the ixs
                     // we're looking for raydium swaps, those swaps can occur in 2 forms:
@@ -342,26 +351,26 @@ async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &RpcClie
                         let inner_ix = inner_ix_map.get(&i);
                         if let Some(inner_ix) = inner_ix {
                             // ray v4 swap
-                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V4_PUBKEY, &[0x09], 1, 1, 2, 17, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V4_PUBKEY, &[0x09], 1, 1, 2, 17, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
                             // ray v5 swap_base_input/swap_base_output
-                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x8f, 0xbe, 0x5a, 0xda, 0xc4, 0x1e, 0x33, 0xde], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
-                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x37, 0xd9, 0x62, 0x56, 0xa3, 0x4a, 0xb4, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x8f, 0xbe, 0x5a, 0xda, 0xc4, 0x1e, 0x33, 0xde], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
+                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x37, 0xd9, 0x62, 0x56, 0xa3, 0x4a, 0xb4, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
                             // ray launchpad buy_exact_in/sell_exact_in
-                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0xfa, 0xea, 0x0d, 0x7b, 0xd5, 0x9c, 0x13, 0xec], 4, 2, 3, 32, meta, &account_keys, sig.clone(), raw_tx.index));
-                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x95, 0x27, 0xde, 0x9b, 0xd3, 0x7c, 0x98, 0x1a], 4, 2, 3, 32, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0xfa, 0xea, 0x0d, 0x7b, 0xd5, 0x9c, 0x13, 0xec], 4, 2, 3, 32, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
+                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x95, 0x27, 0xde, 0x9b, 0xd3, 0x7c, 0x98, 0x1a], 4, 2, 3, 32, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
                             // pdf buy/sell
-                            swaps.extend(find_swaps(ix, inner_ix, &PDF_PUBKEY, &[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea], 3, 2, 1, 24, meta, &account_keys, sig.clone(), raw_tx.index));
-                            swaps.extend(find_swaps(ix, inner_ix, &PDF_PUBKEY, &[0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &PDF_PUBKEY, &[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea], 3, 2, 1, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
+                            swaps.extend(find_swaps(ix, inner_ix, &PDF_PUBKEY, &[0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
                             // pdf2 buy/sell
-                            swaps.extend(find_swaps(ix, inner_ix, &PDF2_PUBKEY, &[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea], 0, 2, 1, 24, meta, &account_keys, sig.clone(), raw_tx.index));
-                            swaps.extend(find_swaps(ix, inner_ix, &PDF2_PUBKEY, &[0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad], 0, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &PDF2_PUBKEY, &[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea], 0, 2, 1, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
+                            swaps.extend(find_swaps(ix, inner_ix, &PDF2_PUBKEY, &[0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad], 0, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
                             // whirlpool swap
-                            swaps.extend(find_swaps(ix, inner_ix, &WHIRLPOOL_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 2, 1, 2, 42, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &WHIRLPOOL_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 2, 1, 2, 42, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
                             // dlmm swap
-                            swaps.extend(find_swaps(ix, inner_ix, &DLMM_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &DLMM_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
                             // meteora swap (swap, (charge_fee),  deposit, send, mint_lp, withdraw, recv, burn_lp)
-                            swaps.extend(find_swaps(ix, inner_ix, &METEORA_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 2, 5, 24, meta, &account_keys, sig.clone(), raw_tx.index));
-                            swaps.extend(find_swaps(ix, inner_ix, &METEORA_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 3, 6, 24, meta, &account_keys, sig.clone(), raw_tx.index));
+                            swaps.extend(find_swaps(ix, inner_ix, &METEORA_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 2, 5, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
+                            swaps.extend(find_swaps(ix, inner_ix, &METEORA_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 3, 6, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
                         }                        
                     });
                     return Some(DecompiledTransaction {
@@ -603,7 +612,7 @@ async fn store_to_db(mut receiver: mpsc::Receiver<DbMessage>) {
     let pool = Pool::new(url.as_str()).unwrap();
     let mut conn = pool.get_conn().unwrap();
     let insert_block_stmt = conn.prep("insert into block (slot, timestamp, tx_count) values (?, ?, ?)").unwrap();
-    let insert_tx_stmt = conn.prep("insert into transaction (tx_hash, signer, slot, order_in_block) values (?, ?, ?, ?)").unwrap();
+    let insert_tx_stmt = conn.prep("insert into transaction (tx_hash, signer, slot, order_in_block, dont_front) values (?, ?, ?, ?, ?)").unwrap();
     let insert_swap_stmt = conn.prep("insert into swap (sandwich_id, outer_program, inner_program, amm, subject, input_mint, output_mint, input_amount, output_amount, tx_id, swap_type) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").unwrap();
 
     let mut tx_db_id_cache: HashMap<String, u64> = HashMap::new();
@@ -626,13 +635,13 @@ async fn store_to_db(mut receiver: mpsc::Receiver<DbMessage>) {
                     if tx_db_id_cache.contains_key(&swap.0.sig) {
                         None
                     } else {
-                        Some((&swap.0.sig, &swap.0.signer, sandwich.slot, swap.0.order))
+                        Some((&swap.0.sig, &swap.0.signer, sandwich.slot, swap.0.order, swap.0.dont_front))
                     }
                 }).collect();
                 if !args.is_empty() {
                     dbtx.exec_batch(&insert_tx_stmt, &args).unwrap();
                     // populate the cache with a select
-                    let tx_hashes = args.iter().map(|(tx_hash, _, _, _)| tx_hash).collect::<Vec<_>>();
+                    let tx_hashes = args.iter().map(|(tx_hash, _, _, _, _)| tx_hash).collect::<Vec<_>>();
                     let q_marks = tx_hashes.iter().map(|_| "?").collect::<Vec<_>>().join(",");
                     let stmt = dbtx.prep(format!("select id, tx_hash from transaction where tx_hash in ({q_marks})")).unwrap();
                     let _ = dbtx.exec_map(&stmt, tx_hashes, |(id, tx_hash)| {
@@ -670,12 +679,10 @@ async fn handle_socket(
 }
 
 async fn handle_history(State(state): State<AppState>) -> Json<Vec<Sandwich>> {
-    println!("history requested");
     let snapshot = {
         let history = state.message_history.try_read().unwrap();
         history.iter().cloned().collect()
     };
-    println!("history sent");
     Json(snapshot)
 }
 
