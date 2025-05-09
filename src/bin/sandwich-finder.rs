@@ -1,5 +1,5 @@
-use std::{collections::{HashMap, VecDeque}, env, fmt::Debug, net::SocketAddr, str::FromStr, sync::{Arc, RwLock}};
-use axum::{extract::{ws::{Message, WebSocket}, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Json, Router};
+use std::{collections::{HashMap, VecDeque}, env, fmt::Debug, net::SocketAddr, str::FromStr, sync::{Arc, RwLock}, vec};
+use axum::{extract::{ws::{Message, WebSocket}, Path, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Json, Router};
 use dashmap::DashMap;
 use futures::{SinkExt, StreamExt};
 use mysql::{prelude::Queryable, Pool, TxOpts, Value};
@@ -60,6 +60,17 @@ enum SwapType {
     Frontrun,
     Victim,
     Backrun,
+}
+
+impl From<String> for SwapType {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "FRONTRUN" => SwapType::Frontrun,
+            "VICTIM" => SwapType::Victim,
+            "BACKRUN" => SwapType::Backrun,
+            _ => panic!("unknown swap type"),
+        }
+    }
 }
 
 impl Into<Value> for SwapType {
@@ -156,6 +167,13 @@ pub struct DecompiledTransaction {
 struct AppState {
     message_history: Arc<RwLock<VecDeque<Sandwich>>>,
     sender: broadcast::Sender<Sandwich>,
+    pool: Pool,
+}
+
+fn create_db_pool() -> Pool {
+    let url = env::var("MYSQL").unwrap();
+    let pool = Pool::new(url.as_str()).unwrap();
+    pool
 }
 
 fn pubkey_from_slice(slice: &[u8]) -> Pubkey {
@@ -607,9 +625,7 @@ async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>, db_sender: mpsc::S
     }
 }
 
-async fn store_to_db(mut receiver: mpsc::Receiver<DbMessage>) {
-    let url = env::var("MYSQL").unwrap();
-    let pool = Pool::new(url.as_str()).unwrap();
+async fn store_to_db(pool: Pool, mut receiver: mpsc::Receiver<DbMessage>) {
     let mut conn = pool.get_conn().unwrap();
     let insert_block_stmt = conn.prep("insert into block (slot, timestamp, tx_count) values (?, ?, ?)").unwrap();
     let insert_tx_stmt = conn.prep("insert into transaction (tx_hash, signer, slot, order_in_block, dont_front) values (?, ?, ?, ?, ?)").unwrap();
@@ -686,13 +702,79 @@ async fn handle_history(State(state): State<AppState>) -> Json<Vec<Sandwich>> {
     Json(snapshot)
 }
 
-async fn start_web_server(sender: broadcast::Sender<Sandwich>, message_history: Arc<RwLock<VecDeque<Sandwich>>>) {
+async fn handle_search_tx(State(state): State<AppState>, Path(txid): Path<String>) -> Json<Option<Sandwich>> {
+    let mut conn = state.pool.get_conn().unwrap();
+    let stmt = conn.prep("SELECT tx_hash, signer, slot, timestamp, order_in_block, outer_program, inner_program, amm, subject, input_amount, input_mint, output_amount, output_mint, swap_type, dont_front FROM `sandwich_view` where sandwich_id in (select sandwich_id from sandwich_view where tx_hash=?);").unwrap();
+    let mut frontrun = None;
+    let mut victims = vec![];
+    let mut backrun = None;
+    let mut slot = 0;
+    let mut ts = 0;
+    let res = conn.exec_iter(&stmt, (txid,)).unwrap();
+    for row in res {
+        let row = row.unwrap();
+        let tx_hash: String = row.get(0).unwrap();
+        let signer: String = row.get(1).unwrap();
+        let slot_: u64 = row.get(2).unwrap();
+        let ts_: i64 = row.get(3).unwrap();
+        let order_in_block: u64 = row.get(4).unwrap();
+        let outer_program: Option<String> = row.get(5).unwrap();
+        let inner_program: String = row.get(6).unwrap();
+        let amm: String = row.get(7).unwrap();
+        let subject: String = row.get(8).unwrap();
+        let input_amount: u64 = row.get(9).unwrap();
+        let input_mint: String = row.get(10).unwrap();
+        let output_amount: u64 = row.get(11).unwrap();
+        let output_mint: String = row.get(12).unwrap();
+        let swap_type: String = row.get(13).unwrap();
+        let dont_front: bool = match row.get(14).unwrap() {
+            Value::Bytes(bytes) if bytes.len() == 1 => bytes[0] != 0,
+            _ => false,
+        };
+        let swap = Swap {
+            outer_program,
+            program: inner_program,
+            amm,
+            signer,
+            subject,
+            input_mint,
+            output_mint,
+            input_amount,
+            output_amount,
+            sig: tx_hash.clone(),
+            order: order_in_block,
+            dont_front,
+        };
+        slot = slot_;
+        ts = ts_;
+        match swap_type.into() {
+            SwapType::Frontrun => frontrun = Some(swap),
+            SwapType::Victim => victims.push(swap),
+            SwapType::Backrun => backrun = Some(swap),
+        };
+    }
+    if frontrun.is_some() && backrun.is_some() && victims.len() > 0 {
+        let sandwich = Sandwich {
+            slot: slot as u64,
+            frontrun: frontrun.unwrap(),
+            victim: victims,
+            backrun: backrun.unwrap(),
+            ts,
+        };
+        return Json(Some(sandwich));
+    }
+
+    Json(None)
+}
+async fn start_web_server(sender: broadcast::Sender<Sandwich>, message_history: Arc<RwLock<VecDeque<Sandwich>>>, pool: Pool) {
     let app = Router::new()
         .route("/", get(handle_websocket))
         .route("/history", get(handle_history))
+        .route("/search/{txid}", get(handle_search_tx))
         .with_state(AppState {
             message_history,
             sender,
+            pool,
         });
     let api_port = env::var("API_PORT").unwrap_or_else(|_| "11000".to_string());
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{api_port}"))
@@ -709,13 +791,14 @@ async fn start_web_server(sender: broadcast::Sender<Sandwich>, message_history: 
 #[tokio::main]
 async fn main() {
     dotenv::dotenv().ok();
+    let db_pool = create_db_pool();
     let (sender, mut receiver) = mpsc::channel::<Sandwich>(100);
     let (db_sender, db_receiver) = mpsc::channel::<DbMessage>(100);
     tokio::spawn(sandwich_finder(sender, db_sender));
     let message_history = Arc::new(RwLock::new(VecDeque::<Sandwich>::with_capacity(100)));
     let (sender, _) = broadcast::channel::<Sandwich>(100);
-    tokio::spawn(start_web_server(sender.clone(), message_history.clone()));
-    tokio::spawn(store_to_db(db_receiver));
+    tokio::spawn(start_web_server(sender.clone(), message_history.clone(), db_pool.clone()));
+    tokio::spawn(store_to_db(db_pool, db_receiver));
     while let Some(message) = receiver.recv().await {
         // println!("Received: {:?}", message);
         let mut hist = message_history.write().unwrap();
