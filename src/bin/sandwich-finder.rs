@@ -374,8 +374,8 @@ async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &RpcClie
                             swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x8f, 0xbe, 0x5a, 0xda, 0xc4, 0x1e, 0x33, 0xde], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
                             swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x37, 0xd9, 0x62, 0x56, 0xa3, 0x4a, 0xb4, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
                             // ray launchpad buy_exact_in/sell_exact_in
-                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0xfa, 0xea, 0x0d, 0x7b, 0xd5, 0x9c, 0x13, 0xec], 4, 2, 3, 32, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
-                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_V5_PUBKEY, &[0x95, 0x27, 0xde, 0x9b, 0xd3, 0x7c, 0x98, 0x1a], 4, 2, 3, 32, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
+                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_LP_PUBKEY, &[0xfa, 0xea, 0x0d, 0x7b, 0xd5, 0x9c, 0x13, 0xec], 4, 2, 3, 32, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
+                            swaps.extend(find_swaps(ix, inner_ix, &RAYDIUM_LP_PUBKEY, &[0x95, 0x27, 0xde, 0x9b, 0xd3, 0x7c, 0x98, 0x1a], 4, 2, 3, 32, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
                             // pdf buy/sell
                             swaps.extend(find_swaps(ix, inner_ix, &PDF_PUBKEY, &[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea], 3, 2, 1, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
                             swaps.extend(find_swaps(ix, inner_ix, &PDF_PUBKEY, &[0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad], 3, 1, 2, 24, meta, &account_keys, sig.clone(), raw_tx.index, dont_front));
@@ -704,13 +704,21 @@ async fn handle_history(State(state): State<AppState>) -> Json<Vec<Sandwich>> {
 
 async fn handle_search_tx(State(state): State<AppState>, Path(txid): Path<String>) -> Json<Option<Sandwich>> {
     let mut conn = state.pool.get_conn().unwrap();
-    let stmt = conn.prep("SELECT tx_hash, signer, slot, timestamp, order_in_block, outer_program, inner_program, amm, subject, input_amount, input_mint, output_amount, output_mint, swap_type, dont_front FROM `sandwich_view` where sandwich_id in (select sandwich_id from sandwich_view where tx_hash=?);").unwrap();
+    // look for a valid sandwich
+    let stmt = conn.prep("SELECT sandwich_id, (max(order_in_block)-min(order_in_block))/count(*) as ratio FROM `sandwich_view` v where sandwich_id in (select sandwich_id from sandwich_view where tx_hash=?) GROUP by sandwich_id order by ratio asc limit 1;").unwrap();
+    let sandwich_id = conn.exec_first(&stmt, (txid,)).unwrap().map(|(sandwich_id, _): (u64, f64)| {
+        sandwich_id
+    });
+    if sandwich_id.is_none() {
+        return Json(None);
+    }
+    let stmt = conn.prep("SELECT tx_hash, signer, slot, timestamp, order_in_block, outer_program, inner_program, amm, subject, input_amount, input_mint, output_amount, output_mint, swap_type, dont_front FROM `sandwich_view` where sandwich_id = ?").unwrap();
     let mut frontrun = None;
     let mut victims = vec![];
     let mut backrun = None;
     let mut slot = 0;
     let mut ts = 0;
-    let res = conn.exec_iter(&stmt, (txid,)).unwrap();
+    let res = conn.exec_iter(&stmt, (sandwich_id.unwrap(),)).unwrap();
     for row in res {
         let row = row.unwrap();
         let tx_hash: String = row.get(0).unwrap();
