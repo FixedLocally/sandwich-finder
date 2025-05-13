@@ -101,7 +101,7 @@ The reports consist of 14 columns and their meanings are as follows:
 |R-Sc/R-Sc_p|Unnormalised Sc and Sc_p|
 |slots|Number of leader slots observed for the validator|
 |Sc_p_{lb\|ub}|Bounds of the confidence interval of the validator's true proportion of sandwich inclusive blocks. Flagged if the lower bound is above the cluster mean|
-|Sc_{lb\|ub}|Bounds of the confidence interval of which the validator is considered to have an "average" number of sandwiches per block. Flagged if Sc_p is above the upper bound|
+|Sc_{lb\|ub}|Bounds of the confidence interval of which the validator is considered to have an "average" number of sandwiches per block. Flagged if `Sc` is above the upper bound|
 {Sc_p\|Sc}_flag|True if the validator is being flagged due to the respective metric, false otherwise|
 
 ## Dataset Access
