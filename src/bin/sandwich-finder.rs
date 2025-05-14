@@ -410,14 +410,21 @@ fn find_sandwiches(in_trades: &Vec<&Swap>, out_trades: &Vec<&Swap>, slot: u64, t
     // since we've already went this far, we just need to pass checks 1, 3, 6
     // and we can consider all trades between the in/out trades to be sandwiched
     let mut sandwiches = Vec::new();
+    let mut last_found_index = 0;
+    // todo: should match closing trades with the same signer, if possible
     for i in 0..in_trades.len() {
-        for j in (0..out_trades.len()).rev() {
-            let in_trade = in_trades[i];
+        let in_trade = in_trades[i];
+        let mut matching_out_trade: Option<&Swap> = None;
+        let mut nonmatching_out_trade: Option<&Swap> = None;
+        if in_trade.order <= last_found_index {
+            // we already found another sandwich that includes this trade
+            continue;
+        }
+        for j in 0..out_trades.len() {
             let out_trade = out_trades[j];
             // check #1
             if out_trade.order <= in_trade.order {
-                // subsequent out_trade's will have even lower order
-                break;
+                continue;
             }
             // check #3
             if out_trade.output_amount < in_trade.input_amount {
@@ -433,24 +440,46 @@ fn find_sandwiches(in_trades: &Vec<&Swap>, out_trades: &Vec<&Swap>, slot: u64, t
             if in_trade.outer_program == Some("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4".to_string()) {
                 continue;
             }
-            // these two trades form the sandwich, now we just need to find the victims (in_trades between in_trade and out_trade)
-            let mut victims: Vec<Swap> = Vec::new();
-            for k in i+1..in_trades.len() {
-                let victim = in_trades[k];
-                // check #1
-                if victim.order >= out_trade.order {
-                    // subsequent in_trade's will have even higher order
-                    break;
-                }
-                // check #5
-                if victim.signer == in_trade.signer || victim.signer == out_trade.signer {
-                    continue;
-                }
-                victims.push(victim.clone());
+            if nonmatching_out_trade.is_none() {
+                nonmatching_out_trade = Some(out_trade);
             }
-            if !victims.is_empty() {
-                sandwiches.push(Sandwich::new(slot, in_trade.clone(), victims, out_trade.clone(), ts));
+            if out_trade.signer == in_trade.signer && matching_out_trade.is_none() {
+                matching_out_trade = Some(out_trade);
+                break; // already found the sandwich for this in_trade
             }
+            if nonmatching_out_trade.is_some() && matching_out_trade.is_some() {
+                break; // found both candidates, go to evaluation
+            }
+        }
+        // these two trades form the sandwich, now we just need to find the victims (in_trades between in_trade and out_trade)
+        let mut victims: Vec<Swap> = Vec::new();
+        if nonmatching_out_trade.is_none() {
+            // no sandwich found, go to next in_trade
+            continue;
+        }
+        let out_trade = if let Some(matching_out_trade) = matching_out_trade {
+            // we have a matching out_trade, use it
+            matching_out_trade
+        } else {
+            nonmatching_out_trade.unwrap()
+        };
+        for k in i+1..in_trades.len() {
+            let victim = in_trades[k];
+            // check #1
+            if victim.order >= out_trade.order {
+                // subsequent in_trade's will have even higher order
+                break;
+            }
+            // check #5
+            if victim.signer == in_trade.signer || victim.signer == out_trade.signer {
+                continue;
+            }
+            victims.push(victim.clone());
+        }
+        if !victims.is_empty() {
+            sandwiches.push(Sandwich::new(slot, in_trade.clone(), victims, out_trade.clone(), ts));
+            last_found_index = out_trade.order;
+            break; // already found the sandwich for this in_trade
         }
     }
     sandwiches
@@ -509,7 +538,7 @@ async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>, db_sender: mpsc::S
         let msg = msg.unwrap();
         match msg.update_oneof {
             Some(UpdateOneof::Block(block)) => {
-                println!("new block {}, {} txs", block.slot, block.transactions.len());
+                // println!("new block {}, {} txs", block.slot, block.transactions.len());
                 let now = std::time::Instant::now();
                 let ts = block.block_time.unwrap().timestamp;
                 let slot = block.slot;
@@ -594,13 +623,15 @@ async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>, db_sender: mpsc::S
                         bundle_count += 1;
                     });
                 });
-                println!("block {} processed in {}us, {} swaps found, {} bundles found", block.slot, now.elapsed().as_micros(), swap_count, bundle_count);
+                if bundle_count >= 1 {
+                    println!("block {} processed in {}us, {} swaps found, {} bundles found", block.slot, now.elapsed().as_micros(), swap_count, bundle_count);
+                }
             }
             Some(UpdateOneof::Account(account)) => {
                 if let Some(account_info) = account.account {
                     let lut = AddressLookupTable::deserialize(&account_info.data).expect("unable to deserialize account");
                     let key = pubkey_from_slice(&account_info.pubkey[0..32]);
-                    println!("lut updated: {:?}", key);
+                    // println!("lut updated: {:?}", key);
                     // refuse to shorten luts
                     if let Some(existing_entry) = lut_cache.get(&key) {
                         let existing_len = existing_entry.addresses.len();
