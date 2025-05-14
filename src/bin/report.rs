@@ -3,6 +3,8 @@ use std::{collections::HashMap, env, time};
 use mysql::{prelude::Queryable, Pool};
 use serde::Deserialize;
 use tokio::task::JoinHandle;
+use std::fs::File;
+use std::io::Write;
 
 const Z: f64 = 3.89059188641; // p-value 0.0001
 
@@ -52,6 +54,8 @@ async fn main() {
     let mysql_url = env::var("MYSQL").unwrap();
     let pool = Pool::new(mysql_url.as_str()).unwrap();
     let mut conn = pool.get_conn().unwrap();
+    let mut report = File::create("report.csv").unwrap();
+    let mut filtered_report = File::create("filtered_report.csv").unwrap();
     eprintln!("[+{:7}ms] Connected to MySQL", now.elapsed().as_millis());
     let offset_range = vec![0.2, 1.0, 0.6, 0.4, 0.2];
     // fetch leaders within the concerned slot range to serve as the basis of normalisation
@@ -82,10 +86,17 @@ async fn main() {
     // raw score calculations (sandwiches in leader slot with offset to account for tx delay)
     let offset_stmt = conn.prep("select l.leader, count(*) from (SELECT slot-? as slot FROM `sandwich_slot`) t1, leader_schedule l where t1.slot=l.slot and t1.slot between ? and ? group by l.leader;").unwrap();
     let presence_offset_stmt = conn.prep("select l.leader, count(*) from (SELECT distinct slot-? as slot FROM `sandwich_slot`) t1, leader_schedule l where t1.slot=l.slot and t1.slot between ? and ? group by l.leader;").unwrap();
+    let dontfront_stmt = conn.prep("SELECT l.leader, sum(dont_front) FROM `swap` s, transaction t, leader_schedule l where s.tx_id=t.id and t.slot=l.slot and s.swap_type='VICTIM' and t.slot between ? and ? group by l.leader").unwrap();
     let mut scores: HashMap<String, f64> = HashMap::new();
     let mut presence_scores: HashMap<String, f64> = HashMap::new();
+    let mut dont_front: HashMap<String, u64> = HashMap::new();
     let mut total_score = 0.0;
     let mut total_presence_score = 0.0;
+    conn.exec_iter(&dontfront_stmt, slot_range).unwrap().for_each(|row| {
+        let (leader, count): (String, i32) = mysql::from_row(row.unwrap());
+        dont_front.insert(leader, count as u64);
+    });
+    eprintln!("[+{:7}ms] Consolidated dont_front", now.elapsed().as_millis());
     for i in 0..offset_range.len() {
         conn.exec_iter(&offset_stmt, (i, slot_range.0, slot_range.1)).unwrap().for_each(|row| {
             let (leader, count): (String, i32) = mysql::from_row(row.unwrap());
@@ -127,7 +138,8 @@ async fn main() {
     let validator_info = validator_info_fut.await.unwrap();
     let validator_info = validator_info.into_iter().map(|v| (v.identity.clone(), v)).collect::<HashMap<String, ValidatorInfo>>();
     // print report
-    println!("{},{},{},{},{},{},{},{},{},{},{},{},{},{}", "leader", "vote", "name", "Sc", "Sc_p", "R-Sc", "R-Sc_p", "slots", "Sc_p_lb", "Sc_p_ub", "Sc_p_flag", "Sc_lb", "Sc_ub", "Sc_flag");
+    writeln!(report, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", "leader", "vote", "name", "Sc", "Sc_p", "R-Sc", "R-Sc_p", "slots", "Sc_p_lb", "Sc_p_ub", "Sc_p_flag", "Sc_lb", "Sc_ub", "Sc_flag", "dontfront_violations").unwrap();
+    writeln!(filtered_report, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", "leader", "vote", "name", "Sc", "Sc_p", "R-Sc", "R-Sc_p", "slots", "Sc_p_lb", "Sc_p_ub", "Sc_p_flag", "Sc_lb", "Sc_ub", "Sc_flag", "dontfront_violations").unwrap();
     let w_sc_p = total_presence_score as f64 / (slot_range.1 - slot_range.0) as f64 / norm_factor;
     let w_sc = total_score as f64 / (slot_range.1 - slot_range.0) as f64 / norm_factor;
     for (leader, sc, sc_p, rsc, rsc_p, slots) in entries.iter() {
@@ -138,10 +150,17 @@ async fn main() {
             Some(v) => (v.vote_pubkey.clone().unwrap_or("".to_string()), v.name.clone().unwrap_or("".to_string())),
             None => ("".to_string(), "".to_string())
         };
-        println!("{},{},\"{}\",{},{},{},{},{},{},{},{},{},{},{}", leader, vote, name.replace("\"", "\"\""), sc, sc_p, rsc, rsc_p, slots, lb, ub, lb > w_sc_p, n_lb, n_ub, n_ub < **sc);
+        writeln!(report, "{},{},\"{}\",{},{},{},{},{},{},{},{},{},{},{},{}", leader, vote, name.replace("\"", "\"\""), sc, sc_p, rsc, rsc_p, slots, lb, ub, lb > w_sc_p, n_lb, n_ub, n_ub < **sc, dont_front.get(*leader).unwrap_or(&0)).unwrap();
+        if lb > w_sc_p && n_ub < **sc {
+            writeln!(filtered_report, "{},{},\"{}\",{},{},{},{},{},{},{},{},{},{},{},{}", leader, vote, name.replace("\"", "\"\""), sc, sc_p, rsc, rsc_p, slots, lb, ub, lb > w_sc_p, n_lb, n_ub, n_ub < **sc, dont_front.get(*leader).unwrap_or(&0)).unwrap();
+        }
     }
-    println!("Weighted avg Sc_p,{:.5},,,,,,,,,,,,", w_sc_p);
-    println!("Weighted avg Sc,{:.5},,,,,,,,,,,,", w_sc);
-    println!("Global stdev,{:.5},,,,,,,,,,,,", stdev);
-    println!("Slot count,{},,,,,,,,,,,,", slot_range.1 - slot_range.0 + 1);
+    writeln!(report, "Weighted avg Sc_p,{:.5},,,,,,,,,,,,,", w_sc_p).unwrap();
+    writeln!(report, "Weighted avg Sc,{:.5},,,,,,,,,,,,,", w_sc).unwrap();
+    writeln!(report, "Global stdev,{:.5},,,,,,,,,,,,,", stdev).unwrap();
+    writeln!(report, "Slot count,{},,,,,,,,,,,,,", slot_range.1 - slot_range.0 + 1).unwrap();
+    writeln!(filtered_report, "Weighted avg Sc_p,{:.5},,,,,,,,,,,,,", w_sc_p).unwrap();
+    writeln!(filtered_report, "Weighted avg Sc,{:.5},,,,,,,,,,,,,", w_sc).unwrap();
+    writeln!(filtered_report, "Global stdev,{:.5},,,,,,,,,,,,,", stdev).unwrap();
+    writeln!(filtered_report, "Slot count,{},,,,,,,,,,,,,", slot_range.1 - slot_range.0 + 1).unwrap();
 }

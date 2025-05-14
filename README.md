@@ -9,7 +9,7 @@ Slot range: [333965150, 3400013150]
 |Standard Deviation of sandwiches per block|0.41396|
 
 
-### Stake pool dsitribution (Epoch 777):
+### Stake pool dsitribution (Epoch 787):
 |Pool|Stake (SOL)|Pool Share|
 |---|---|---|
 |Marinade (overall)|4,929,856|49.17%|
