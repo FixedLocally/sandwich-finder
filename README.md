@@ -1,25 +1,25 @@
 # Solana Sandwich Finder
 ## Overview
-Slot range: [336997011, 343045011]
+Slot range: [342621814, 348669829]
 ### Global Metrics
 |Metric|Value|
 |---|---|
-|Proportion of sandwich-inclusive block|2.801%|
-|Average sandwiches per block|0.04190|
-|Standard Deviation of sandwiches per block|0.32651|
+|Proportion of sandwich-inclusive block|1.932%|
+|Average sandwiches per block|0.02402|
+|Standard Deviation of sandwiches per block|0.19120|
 
 
 ### Stake pool dsitribution (Epoch 793):
 |Pool|Stake (SOL)|Pool Share|
 |---|---|---|
-|Marinade (overall)|5,226,622|52.15%|
-| - Marinade Liquid|1,690,934|33.02%|
-| - Marinade Native|3,535,688|72.15%|
-|Jito|2,079,362|11.42%|
-|xSHIN|70,096|6.98%|
-|SFDP|2,739,722|6.91%|
-|JPool|48,296|4.33%|
-|BlazeStake|33,706|2.99%|
+|Marinade (overall)|7,976,665|82.42%|
+| - Marinade Liquid|3,494,186|46.88%|
+| - Marinade Native|4,482,479|89.58%|
+|Jito|3,056,771|17.04%|
+|SFDP|1,454,425|3.89%|
+|BlazeStake|29,689|2.61%|
+|JPool|19,489|1.80%|
+|xSHIN|0|0.00%|
 |Aero|0|0.00%|
 
 ### Honourable Mention
@@ -29,14 +29,13 @@ If your validator is on this list, check the docs of your favourite Solana valid
 
 |Validator|Stake|Observed Leader Blocks|Weighted Sandwich-inclusive blocks|Weighted Sandwiches|
 |---|---|---|---|---|
-|Haus – Guaranteed Best APY & No Fees|2,033,771|30,928|1,353.25|1,700.00|
-|AG 0% fee + ALL MEV profit share|1,411,992|22,492|2,184.50|2,682.00|
-|[Marinade Customer] AltaBlock|410,505|2,444|819.58|1,399.42|
-|[Marinade Customer] 9jmv...zKgm|408,805|432|145.50|255.00|
-|[Marinade Customer] Aspis 🛡 +MEV|408,366|1,548|519.67|891.75|
-|BT8L...gziD|406,428|4,112|1,549.42|3,236.00|
-|[Marinade Customer] StakeShip 🛳  Additional rewards|401,461|1,288|408.83|708.08|
-|[Marinade Customer] 9fgw...zsXs|6,028|2,695.25|6,649.67|
+|Haus – Guaranteed Best APY & No Fees|2,036,907|30380|790.42|882.67|
+|AG 0% fee + ALL MEV profit share|1,391,005|21304|1009.17|1114.17|
+|[Marinade/Jito Customer] ARCHER 0% commission + MEV|498,309|4336|1165.83|1638.67|
+|[Marinade Customer] AltaBlock|425,770|6456|1700.00|2379.42|
+|[Marinade Customer] 9jmv...zKgm|422,047|5644|1677.92|2692.50|
+|[Marinade Customer] Aspis 🛡 +MEV|414,873|6312|1609.42|2193.08|
+|[Marinade Customer] StakeShip 🛳  Additional rewards|414,070|6216|1654.33|2361.75|
 
 ## Preface
 Sandwiching refers to the action of forcing the earlier inclusion of a transaction (frontrun) before a transaction published earlier (victim), with another transaction after the victim transaction to realise a profit (backrun), while abusing the victim's slippage settings. We define a sandwich as "a set of transactions that include exactly one frontrun and exactly one backrun transaction, as well as at least one victim transaction", a sandwicher as "a party that sandwiches", and a colluder as "a validator that forwards transactions they receive to a sandwicher".
