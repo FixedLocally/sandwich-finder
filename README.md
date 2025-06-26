@@ -9,6 +9,7 @@ Slot range: [343353314, 349401314]
 |Standard Deviation of sandwiches per block|0.19878|
 
 ### Stake pool dsitribution (Epoch 808):
+Note: Marinade removed >5M SOL from sandwichers this epoch, so their pool share percentage should decrease sharply from epoch 809.
 |Pool|Stake (SOL)|Pool Share|
 |---|---|---|
 |Marinade (overall)|2,669,762|65.79%|
