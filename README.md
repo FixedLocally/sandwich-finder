@@ -1,41 +1,41 @@
 # Solana Sandwich Finder
 ## Overview
-Slot range: [342621814, 348669829]
+Slot range: [343353314, 349401314]
 ### Global Metrics
 |Metric|Value|
 |---|---|
-|Proportion of sandwich-inclusive block|1.932%|
-|Average sandwiches per block|0.02402|
-|Standard Deviation of sandwiches per block|0.19120|
+|Proportion of sandwich-inclusive block|2.054%|
+|Average sandwiches per block|0.02580|
+|Standard Deviation of sandwiches per block|0.19878|
 
-
-### Stake pool dsitribution (Epoch 793):
+### Stake pool dsitribution (Epoch 808):
 |Pool|Stake (SOL)|Pool Share|
 |---|---|---|
-|Marinade (overall)|7,976,665|82.42%|
-| - Marinade Liquid|3,494,186|46.88%|
-| - Marinade Native|4,482,479|89.58%|
-|Jito|3,056,771|17.04%|
-|SFDP|1,454,425|3.89%|
-|BlazeStake|29,689|2.61%|
-|JPool|19,489|1.80%|
-|xSHIN|0|0.00%|
-|Aero|0|0.00%|
+|Marinade (overall)|2,669,762|65.79%|
+| - Marinade Liquid|1,273,369|58.19%|
+| - Marinade Native|1,396,393|74.69%|
+|Jito|3,305,954|18.45%|
+|SFDP|1,300,555|3.69%|
+|BlazeStake|25,341|2.24%|
+|JPool|21,579|1.96%|
+|The Vault|10,339|0.65%|
+|xSHIN|2,202|0.22%|
+|marginfi|15|0.01%|
 
 ### Honourable Mention
 These are hand-picked, visible to the naked eye colluders. If you're staking to them, you should unstake because you placed your trust on validators actively breaking trust.
 
 If your validator is on this list, check the docs of your favourite Solana validator flavour, compile the binaries yourself and make sure to apply any command line arguments as indicated. If you're paid to run any relayers/mods by an unknown 3rd party, chances are you're colluding with sandwichers unknowingly, please revert those changes.
-
 |Validator|Stake|Observed Leader Blocks|Weighted Sandwich-inclusive blocks|Weighted Sandwiches|
 |---|---|---|---|---|
-|Haus – Guaranteed Best APY & No Fees|2,036,907|30380|790.42|882.67|
-|AG 0% fee + ALL MEV profit share|1,391,005|21304|1009.17|1114.17|
-|[Marinade/Jito Customer] ARCHER 0% commission + MEV|498,309|4336|1165.83|1638.67|
-|[Marinade Customer] AltaBlock|425,770|6456|1700.00|2379.42|
-|[Marinade Customer] 9jmv...zKgm|422,047|5644|1677.92|2692.50|
-|[Marinade Customer] Aspis 🛡 +MEV|414,873|6312|1609.42|2193.08|
-|[Marinade Customer] StakeShip 🛳  Additional rewards|414,070|6216|1654.33|2361.75|
+|[Jito Customer] Haus – Guaranteed Best APY & No Fees|2,031,773|30,876|851.33|957.50|
+|AG 0% fee + ALL MEV profit share|1,390,748|21,384|1,044.50|1,153.50|
+|[Marinade Customer] 9jmv...zKgm|419,786|6,160|1,889.08|3,075.75|
+|[Marinade Customer] 7cPz...Hbi2|397,571|2,716|805.83|1,201.83|
+|[Marinade Customer] GZw2...TmoV|286,775|1,324|428.83|690.25|
+|HM5H...dMRA|277,391|4,076|170.42|204.83|
+|[Marinade Customer] AJTw...u2JC|274,101|864|281.67|462.33|
+|Blocksmith 🗝️|256,036|3,924|135.83|150.50|
 
 ## Preface
 Sandwiching refers to the action of forcing the earlier inclusion of a transaction (frontrun) before a transaction published earlier (victim), with another transaction after the victim transaction to realise a profit (backrun), while abusing the victim's slippage settings. We define a sandwich as "a set of transactions that include exactly one frontrun and exactly one backrun transaction, as well as at least one victim transaction", a sandwicher as "a party that sandwiches", and a colluder as "a validator that forwards transactions they receive to a sandwicher".
@@ -92,7 +92,9 @@ Validators satisfying the alternative hypothesis, signaling collusion for an ext
 For flagging on [Hanabi Staking's dashboard](https://hanabi.so/marinade-stake-selling), flagged validators with fewer than 50 blocks as well as those only exceeding the thresholds marginally but reputable are excluded.
 
 ## Report Interpretation
-The reports consist of 14 columns and their meanings are as follows:
+There are two CSV files, `report.csv` and `filtered_report.csv`. The first file shows all validators' metrics while the second one shows the ones with abnormally high values. It's normal for your validator to show up in `report.csv`.
+
+The CSV files contain 14 columns each and their meanings are as follows:
 |Column(s)|Meaning|
 |---|---|
 |leader/vote|The validator's identity and vote account pubkeys|
