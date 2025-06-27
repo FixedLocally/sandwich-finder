@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::Write;
 
 const Z: f64 = 3.89059188641; // p-value 0.0001
+const FILTERED_SLOT_THRESHOLD: i32 = 200;
 
 fn p_conf_interval(n: f64, k: f64) -> (f64, f64) {
     let p = k / n;
@@ -151,7 +152,7 @@ async fn main() {
             None => ("".to_string(), "".to_string())
         };
         writeln!(report, "{},{},\"{}\",{},{},{},{},{},{},{},{},{},{},{},{}", leader, vote, name.replace("\"", "\"\""), sc, sc_p, rsc, rsc_p, slots, lb, ub, lb > w_sc_p, n_lb, n_ub, n_ub < **sc, dont_front.get(*leader).unwrap_or(&0)).unwrap();
-        if lb > w_sc_p && n_ub < **sc {
+        if lb > w_sc_p && n_ub < **sc && *slots >= FILTERED_SLOT_THRESHOLD {
             writeln!(filtered_report, "{},{},\"{}\",{},{},{},{},{},{},{},{},{},{},{},{}", leader, vote, name.replace("\"", "\"\""), sc, sc_p, rsc, rsc_p, slots, lb, ub, lb > w_sc_p, n_lb, n_ub, n_ub < **sc, dont_front.get(*leader).unwrap_or(&0)).unwrap();
         }
     }
