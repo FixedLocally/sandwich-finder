@@ -1,25 +1,24 @@
 # Solana Sandwich Finder
 ## Overview
-Slot range: [345600000, 351648000]
+Slot range: [346032000, 352080000]
 ### Global Metrics
 |Metric|Value|
 |---|---|
-|Proportion of sandwich-inclusive block|1.806%|
-|Average sandwiches per block|0.02218|
-|Standard Deviation of sandwiches per block|0.18138|
+|Proportion of sandwich-inclusive block|1.874%|
+|Average sandwiches per block|0.02290|
+|Standard Deviation of sandwiches per block|0.18377|
 
-### Stake pool dsitribution (Epoch 814):
+### Stake pool dsitribution (Epoch 815):
 |Pool|Stake (SOL)|Pool Share|
 |---|---|---|
-|Marinade (overall)|1,136,476|11.62%|
-| - Marinade Liquid|531,770|11.26%|
-| - Marinade Native|604,705|11.97%|
-|Jito|3,151,761|17.77%|
-|SFDP|1,255,331|3.54%|
-|BlazeStake|26,836|2.35%|
-|xSHIN|20,995|2.07%|
-|JPool|23,393|2.04%|
-|The Vault|10,270|0.63%|
+|Marinade (overall)|1,166,842|11.64%|
+| - Marinade Liquid|552,362|11.68%|
+| - Marinade Native|614,480|11.61%|
+|Jito|3,135,091|17.84%|
+|SFDP|1,054,017|2.99%|
+|xSHIN|23,217|2.30%|
+|BlazeStake|25,218|2.22%|
+|JPool|23,402|2.04%|
 |marginfi|15|0.01%|
 
 ### Honourable Mention
@@ -28,11 +27,12 @@ These are hand-picked, visible to the naked eye colluders. If you're staking to 
 If your validator is on this list, check the docs of your favourite Solana validator flavour, compile the binaries yourself and make sure to apply any command line arguments as indicated. If you're paid to run any relayers/mods by an unknown 3rd party, chances are you're colluding with sandwichers unknowingly, please revert those changes.
 |Validator|Stake|Observed Leader Blocks|Weighted Sandwich-inclusive blocks|Weighted Sandwiches|
 |---|---|---|---|---|
-|[Jito Customer] Haus – Guaranteed Best APY & No Fees|2,043,468|31,064|929.50|1,035.33|
-|AG 0% fee + ALL MEV profit share|1,380,375|21,024|897.75|976.00|
-|[Marinade Customer] D5f7...ktQB|401,359|1,844|57.08|72.67|
-|[Marinade Customer] HM5H...dMRA|359,881|4,388|171.92|205.33|
-|Blocksmith 🗝️|254,418|3,920|253.25|284.00|
+|[Jito Customer] Haus – Guaranteed Best APY & No Fees|2,064,639|31,128|1,030.83|1,143.92|
+|AG 0% fee + ALL MEV profit share|1,379,505|21,156|993.67|1,079.58|
+|[Marinade Customer] 🧬 HelixNode jitoMEV 0% fee 🧬|405,991|3,636|119.58|127.33|
+|[Marinade Customer] D5f7...ktQB|401,579|2,308|72.08|91.00|
+|[Marinade Customer] HM5H...dMRA|362,407|4,376|176.00|209.42|
+|Blocksmith 🗝️|254,529|4,008|291.75|329.17|
 
 ## Preface
 Sandwiching refers to the action of forcing the earlier inclusion of a transaction (frontrun) before a transaction published earlier (victim), with another transaction after the victim transaction to realise a profit (backrun), while abusing the victim's slippage settings. We define a sandwich as "a set of transactions that include exactly one frontrun and exactly one backrun transaction, as well as at least one victim transaction", a sandwicher as "a party that sandwiches", and a colluder as "a validator that forwards transactions they receive to a sandwicher".
