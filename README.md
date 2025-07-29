@@ -1,24 +1,24 @@
 # Solana Sandwich Finder
 ## Overview
-Slot range: [349920000, 355968000]
+Slot range: [350352000, 356400000]
 ### Global Metrics
 |Metric|Value|
 |---|---|
-|Proportion of sandwich-inclusive block|1.722%|
-|Average sandwiches per block|0.01935|
-|Standard Deviation of sandwiches per block|0.15834|
+|Proportion of sandwich-inclusive block|1.753%|
+|Average sandwiches per block|0.01966|
+|Standard Deviation of sandwiches per block|0.15909|
 
-### Stake pool dsitribution (Epoch 824):
+### Stake pool dsitribution (Epoch 825):
 |Pool|Stake (SOL)|Pool Share|
 |---|---|---|
-|Marinade (overall)|5,098,738|51.74%|
-| - Marinade Liquid|2,566,512|53.70%|
-| - Marinade Native|2,532,227|49.88%|
-|Jito|3,578,359|22.69%|
-|SFDP|1,943,925|5.49%|
-|JPool|36,665|3.05%|
-|BlazeStake|22,119|1.96%|
-|Firedancer|20,015|1.05%|
+|Marinade (overall)|5,949,001|59.65%|
+| - Marinade Liquid|3,111,156|63.27%|
+| - Marinade Native|2,837,845|56.12%|
+|Jito|3,549,466|22.43%|
+|SFDP|1,923,553|5.46%|
+|JPool|36,679|3.03%|
+|BlazeStake|23,830|2.05%|
+|Firedancer|20,022|1.05%|
 |marginfi|42|0.03%|
 
 ### Honourable Mention
@@ -27,20 +27,21 @@ These are hand-picked, visible to the naked eye colluders. If you're staking to 
 If your validator is on this list, check the docs of your favourite Solana validator flavour, compile the binaries yourself and make sure to apply any command line arguments as indicated. If you're paid to run any relayers/mods by an unknown 3rd party, chances are you're colluding with sandwichers unknowingly, please revert those changes.
 |Validator|Stake|Observed Leader Blocks|Weighted Sandwich-inclusive blocks|Weighted Sandwiches|
 |---|---|---|---|---|
-|Haus – Guaranteed Best APY & No Fees|1,953,628|30,512|1,160.83|1,258.50|
-|AG 0% fee + ALL MEV profit share|1,382,932|20,752|1,420.17|1,506.17|
-|[Marinade Customer] 🧬 HelixNode jitoMEV 0% fee 🧬|399,654|6,072|350.42|366.17|
-|[Marinade Customer] D5f7...ktQB|398,381|5,924|177.58|201.08|
-|[Marinade Customer] 5wZc...J89f|397,889|5,712|168.92|185.92|
-|[Marinade Customer] DDNb...qudn|396,759|5,812|163.17|175.92|
-|[Marinade Customer] f4uc...q86q|395,211|5,656|163.25|189.42|
-|[Marinade Customer] 7wEZ...v122|391,424|5,956|183.58|212.83|
-|[Marinade Customer] 1CsA...pHXm|379,735|2,224|71.67|75.67|
-|HM5H...dMRA|329,196|5,016|186.42|217.92|
-|[Marinade Customer] 3yNM...rXSX|320,136|1,768|64.00|74.25|
-|[Marinade Customer] 8mzu...eoap|313,696|2,020|79.08|93.17|
-|[Marinade Customer] 36Ex...qkvh|298,097|1,604|60.50|68.50|
-|[Marinade Customer] 2hcC...YTtg|290,344|1,524|52.33|60.92|
+|Haus – Guaranteed Best APY & No Fees|2,006,054|30,276|1,134.83|1,224.75|
+|AG 0% fee + ALL MEV profit share|1,384,374|20,616|1,426.17|1,514.33|
+|[Marinade Customer] D5f7...ktQB|402,725|5,988|186.67|211.42|
+|[Marinade Customer] 5wZc...J89f|402,239|5,720|172.75|191.17|
+|[Marinade Customer] DDNb...qudn|401,246|5,804|166.33|183.42|
+|[Marinade Customer] 🧬 HelixNode jitoMEV 0% fee 🧬|400,113|6,056|374.25|391.67|
+|[Marinade Customer] f4uc...q86q|399,726|5,700|178.58|205.00|
+|[Marinade Customer] 7wEZ...v122|395,646|5,832|184.50|214.42|
+|[Marinade Customer] 1CsA...pHXm|384,928|2,652|83.42|89.25|
+|[Marinade Customer] 9KV7...wYYx|380,996|3,056|90.42|101.42|
+|[Marinade Customer] 3yNM...rXSX|348,842|2,056|73.83|86.92|
+|[Marinade Customer] 8mzu...eoap|337,387|2,316|89.92|104.25|
+|HM5H...dMRA|329,317|5,028|179.42|211.33|
+|[Marinade Customer] 36Ex...qkvh|322,140|1,900|77.08|86.92|
+|[Marinade Customer] 2hcC...YTtg|313,907|1,836|72.17|83.42|
 
 ## Preface
 Sandwiching refers to the action of forcing the earlier inclusion of a transaction (frontrun) before a transaction published earlier (victim), with another transaction after the victim transaction to realise a profit (backrun), while abusing the victim's slippage settings. We define a sandwich as "a set of transactions that include exactly one frontrun and exactly one backrun transaction, as well as at least one victim transaction", a sandwicher as "a party that sandwiches", and a colluder as "a validator that forwards transactions they receive to a sandwicher".
