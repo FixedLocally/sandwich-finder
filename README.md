@@ -1,24 +1,26 @@
 # Solana Sandwich Finder
 ## Overview
-Slot range: [350352000, 356400000]
+Slot range: [351216000, 357264000]
 ### Global Metrics
 |Metric|Value|
 |---|---|
-|Proportion of sandwich-inclusive block|1.753%|
-|Average sandwiches per block|0.01966|
-|Standard Deviation of sandwiches per block|0.15909|
+|Proportion of sandwich-inclusive block|1.790%|
+|Average sandwiches per block|0.02003|
+|Standard Deviation of sandwiches per block|0.15988|
 
-### Stake pool dsitribution (Epoch 825):
+### Stake pool dsitribution (Epoch 827):
 |Pool|Stake (SOL)|Pool Share|
 |---|---|---|
-|Marinade (overall)|5,949,001|59.65%|
-| - Marinade Liquid|3,111,156|63.27%|
-| - Marinade Native|2,837,845|56.12%|
-|Jito|3,549,466|22.43%|
-|SFDP|1,923,553|5.46%|
-|JPool|36,679|3.03%|
-|BlazeStake|23,830|2.05%|
-|Firedancer|20,022|1.05%|
+|Marinade (overall)|5,703,532|57.75%|
+| - Marinade Liquid|2,914,938|59.32%|
+| - Marinade Native|2,788,593|56.20%|
+|Jito|3,583,161|22.74%|
+|SFDP|1,862,440|5.26%|
+|JPool|36,705|3.02%|
+|BlazeStake|21,660|1.89%|
+|Firedancer|20,037|1.05%|
+|xSHIN|6,950|0.68%|
+|DZDP|13,683|0.46%|
 |marginfi|42|0.03%|
 
 ### Honourable Mention
@@ -27,21 +29,21 @@ These are hand-picked, visible to the naked eye colluders. If you're staking to 
 If your validator is on this list, check the docs of your favourite Solana validator flavour, compile the binaries yourself and make sure to apply any command line arguments as indicated. If you're paid to run any relayers/mods by an unknown 3rd party, chances are you're colluding with sandwichers unknowingly, please revert those changes.
 |Validator|Stake|Observed Leader Blocks|Weighted Sandwich-inclusive blocks|Weighted Sandwiches|
 |---|---|---|---|---|
-|Haus – Guaranteed Best APY & No Fees|2,006,054|30,276|1,134.83|1,224.75|
-|AG 0% fee + ALL MEV profit share|1,384,374|20,616|1,426.17|1,514.33|
-|[Marinade Customer] D5f7...ktQB|402,725|5,988|186.67|211.42|
-|[Marinade Customer] 5wZc...J89f|402,239|5,720|172.75|191.17|
-|[Marinade Customer] DDNb...qudn|401,246|5,804|166.33|183.42|
-|[Marinade Customer] 🧬 HelixNode jitoMEV 0% fee 🧬|400,113|6,056|374.25|391.67|
-|[Marinade Customer] f4uc...q86q|399,726|5,700|178.58|205.00|
-|[Marinade Customer] 7wEZ...v122|395,646|5,832|184.50|214.42|
-|[Marinade Customer] 1CsA...pHXm|384,928|2,652|83.42|89.25|
-|[Marinade Customer] 9KV7...wYYx|380,996|3,056|90.42|101.42|
-|[Marinade Customer] 3yNM...rXSX|348,842|2,056|73.83|86.92|
-|[Marinade Customer] 8mzu...eoap|337,387|2,316|89.92|104.25|
-|HM5H...dMRA|329,317|5,028|179.42|211.33|
-|[Marinade Customer] 36Ex...qkvh|322,140|1,900|77.08|86.92|
-|[Marinade Customer] 2hcC...YTtg|313,907|1,836|72.17|83.42|
+|Haus – Guaranteed Best APY & No Fees|2,002,873|30,024|1,073.25|1,162.42|
+|AG 0% fee + ALL MEV profit share|1,404,249|20,752|1,510.50|1,605.58|
+|[Marinade Customer] D5f7...ktQB|396,488|5,960|204.50|232.17|
+|[Marinade Customer] 5wZc...J89f|396,141|5,788|190.33|211.75|
+|[Marinade Customer] 7wEZ...v122|395,317|6,040|201.08|232.33|
+|[Marinade Customer] DDNb...qudn|395,194|5,893|172.42|193.17|
+|[Marinade Customer] 🧬 HelixNode jitoMEV 0% fee 🧬|393,927|5,956|367.92|385.83|
+|[Marinade Customer] f4uc...q86q|393,752|5,700|193.08|221.58|
+|[Marinade Customer] 1CsA...pHXm|390,843|3,480|114.25|126.08|
+|[Marinade Customer] 3yNM...rXSX|386,885|2,812|92.25|107.17|
+|[Marinade Customer] 9KV7...wYYx|376,941|3,896|111.67|124.42|
+|[Marinade Customer] 36Ex...qkvh|359,327|2,496|103.58|120.25|
+|[Marinade Customer] 2hcC...YTtg|349,067|2,580|93.17|107.42|
+|[Marinade Customer] 8mzu...eoap|342,428|2,996|110.17|128.25|
+|HM5H...dMRA|329,552|4,936|152.42|181.50|
 
 ## Preface
 Sandwiching refers to the action of forcing the earlier inclusion of a transaction (frontrun) before a transaction published earlier (victim), with another transaction after the victim transaction to realise a profit (backrun), while abusing the victim's slippage settings. We define a sandwich as "a set of transactions that include exactly one frontrun and exactly one backrun transaction, as well as at least one victim transaction", a sandwicher as "a party that sandwiches", and a colluder as "a validator that forwards transactions they receive to a sandwicher".
