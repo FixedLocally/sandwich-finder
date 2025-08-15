@@ -1,4 +1,4 @@
-use sandwich_finder::utils::{create_db_pool, decompile, find_sandwiches, pubkey_from_slice, DecompiledTransaction, Sandwich, Swap, SwapType};
+use sandwich_finder::utils::{block_stats, create_db_pool, decompile, find_sandwiches, pubkey_from_slice, DbMessage, DecompiledTransaction, Sandwich, Swap, SwapType};
 use std::{collections::{HashMap, VecDeque}, env, net::SocketAddr, sync::{Arc, RwLock}, vec};
 use axum::{extract::{ws::{Message, WebSocket}, Path, State, WebSocketUpgrade}, response::IntoResponse, routing::get, Json, Router};
 use dashmap::DashMap;
@@ -9,25 +9,7 @@ use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount}, commitment_config::CommitmentConfig};
 use tokio::sync::{broadcast, mpsc};
 use yellowstone_grpc_client::GeyserGrpcBuilder;
-use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequestFilterAccounts, SubscribeRequestPing}, prelude::{RewardType, SubscribeRequest, SubscribeRequestFilterBlocks}, tonic::transport::Endpoint};
-
-
-#[derive(Clone)]
-struct DbBlock {
-    slot: u64,
-    ts: i64,
-    tx_count: usize,
-    vote_count: usize,
-    reward_lamports: Option<i64>,
-    successful_cu: u64,
-    total_cu: u64,
-}
-
-#[derive(Clone)]
-enum DbMessage {
-    Block(DbBlock),
-    Sandwich(Sandwich),
-}
+use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequestFilterAccounts, SubscribeRequestPing}, prelude::{SubscribeRequest, SubscribeRequestFilterBlocks}, tonic::transport::Endpoint};
 
 #[derive(Clone)]
 struct AppState {
@@ -94,41 +76,7 @@ async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>, db_sender: mpsc::S
                 let ts = block.block_time.unwrap().timestamp;
                 let slot = block.slot;
                 let mut bundle_count = 0;
-                let reward_lamports= if let Some(rewards) = block.rewards {
-                    rewards.rewards.iter()
-                        .filter(|f| f.reward_type == RewardType::Fee as i32)
-                        .map(|f| f.lamports)
-                        .reduce(|a, b| a + b)
-                } else {
-                    None
-                };
-                // vote count/successful/total units
-                let stats = block.transactions.iter().fold((0, 0, 0), |a, tx| {
-                    let vote_count = if tx.is_vote {
-                        a.0 + 1
-                    } else {
-                        a.0
-                    };
-                    if let Some(meta) = &tx.meta {
-                        if let Some(units) = meta.compute_units_consumed {
-                            return if meta.err.is_none() {
-                                (vote_count, a.1 + units, a.2 + units)
-                            } else {
-                                (vote_count, a.1, a.2 + units)
-                            };
-                        }
-                    }
-                    (vote_count, a.1, a.2)
-                });
-                db_sender.send(DbMessage::Block(DbBlock {
-                    slot,
-                    ts,
-                    tx_count: block.transactions.len(),
-                    vote_count: stats.0,
-                    reward_lamports,
-                    successful_cu: stats.1,
-                    total_cu: stats.2,
-                })).await.unwrap();
+                db_sender.send(block_stats(&block)).await.unwrap();
                 let futs = block.transactions.iter().filter_map(|tx| {
                     if tx.is_vote {
                         None
@@ -247,7 +195,7 @@ async fn store_to_db(pool: Pool, mut receiver: mpsc::Receiver<DbMessage>) {
     while let Some(msg) = receiver.recv().await {
         match msg {
             DbMessage::Block(block) => {
-                conn.exec_drop(&insert_block_stmt, (block.slot, block.ts, block.tx_count, block.vote_count, block.reward_lamports, block.successful_cu, block.total_cu)).unwrap();
+                conn.exec_drop(&insert_block_stmt, (block.slot(), block.ts(), block.tx_count(), block.vote_count(), block.reward_lamports(), block.successful_cu(), block.total_cu())).unwrap();
             }
             DbMessage::Sandwich(sandwich) => {
                 let mut dbtx = conn.start_transaction(TxOpts::default()).unwrap();

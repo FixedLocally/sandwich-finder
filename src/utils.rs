@@ -6,7 +6,7 @@ use mysql::{Pool, Value};
 use serde::{ser::SerializeStruct, Serialize};
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{account::ReadableAccount, address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount}, bs58, instruction::{AccountMeta, Instruction}, pubkey::Pubkey};
-use yellowstone_grpc_proto::{geyser::SubscribeUpdateTransactionInfo, prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta}};
+use yellowstone_grpc_proto::{geyser::{SubscribeUpdateBlock, SubscribeUpdateTransactionInfo}, prelude::{InnerInstruction, InnerInstructions, RewardType, TransactionStatusMeta}};
 
 const DONT_FRONT_START: [u8; 32] = [10,241,195,67,33,136,202,58,99,81,53,161,58,24,149,26,206,189,41,230,172,45,174,103,255,219,6,215,64,0,0,0];
 const DONT_FRONT_END: [u8; 32]   = [10,241,195,67,33,136,202,58,99,82,11,83,236,186,243,27,60,23,98,46,152,130,58,175,28,197,174,53,128,0,0,0];
@@ -198,10 +198,67 @@ impl DecompiledTransaction {
     }
 }
 
+#[derive(Clone, Getters)]
+pub struct DbBlock {
+    slot: u64,
+    ts: i64,
+    tx_count: usize,
+    vote_count: usize,
+    reward_lamports: Option<i64>,
+    successful_cu: u64,
+    total_cu: u64,
+}
+
+#[derive(Clone)]
+pub enum DbMessage {
+    Block(DbBlock),
+    Sandwich(Sandwich),
+}
+
 pub fn create_db_pool() -> Pool {
     let url = env::var("MYSQL").unwrap();
     let pool = Pool::new(url.as_str()).unwrap();
     pool
+}
+
+pub fn block_stats(block: &SubscribeUpdateBlock) -> DbMessage {
+    let ts = block.block_time.unwrap().timestamp;
+    let slot = block.slot;
+    let reward_lamports= if let Some(rewards) = &block.rewards {
+        rewards.rewards.iter()
+            .filter(|f| f.reward_type == RewardType::Fee as i32)
+            .map(|f| f.lamports)
+            .reduce(|a, b| a + b)
+    } else {
+        None
+    };
+    // vote count/successful/total units
+    let stats = block.transactions.iter().fold((0, 0, 0), |a, tx| {
+        let vote_count = if tx.is_vote {
+            a.0 + 1
+        } else {
+            a.0
+        };
+        if let Some(meta) = &tx.meta {
+            if let Some(units) = meta.compute_units_consumed {
+                return if meta.err.is_none() {
+                    (vote_count, a.1 + units, a.2 + units)
+                } else {
+                    (vote_count, a.1, a.2 + units)
+                };
+            }
+        }
+        (vote_count, a.1, a.2)
+    });
+    DbMessage::Block(DbBlock {
+        slot,
+        ts,
+        tx_count: block.transactions.len(),
+        vote_count: stats.0,
+        reward_lamports,
+        successful_cu: stats.1,
+        total_cu: stats.2,
+    })
 }
 
 pub async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &RpcClient, lut_cache: &DashMap<Pubkey, AddressLookupTableAccount>) -> Option<DecompiledTransaction> {
@@ -443,6 +500,10 @@ fn find_swaps(ix: &Instruction, inner_ix: &InnerInstructions, swap_program: &Pub
         if program_id == *swap_program {
             if inner.data.len() != data_len || inner.data[0..discriminant.len()] != *discriminant {
                 return; // not a swap
+            }
+            if inner_ix.instructions.len() < j + send_ix_index || inner_ix.instructions.len() < j + recv_ix_index {
+                println!("we encountered a problem with tx {} - not enough inner instructions", sig);
+                return; // not enough inner instructions
             }
             let send_inner_ix = &inner_ix.instructions[j + send_ix_index];
             let recv_inner_ix = &inner_ix.instructions[j + recv_ix_index];
