@@ -1,17 +1,11 @@
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta};
 
-use crate::{swaps::{addresses::{PDF2_PUBKEY, WSOL_MINT}, finder::{SwapFinder, SwapFinderExt, SwapV2}, private::Sealed}, utils::pubkey_from_slice};
+use crate::swaps::{addresses::PDF2_PUBKEY, finder::{SwapFinder, SwapFinderExt, SwapV2}, private::Sealed};
 
 impl Sealed for PumpAmmSwapFinder {}
 
 pub struct PumpAmmSwapFinder {}
-
-// Includes both the ix and event discrimant
-const LOG_DISCRIMINANT: &[u8] = &[
-    0xe4, 0x45, 0xa5, 0x2e, 0x51, 0xcb, 0x9a, 0x1d,
-    0xbd, 0xdb, 0x7f, 0xd3, 0x4e, 0xe6, 0x61, 0xee,
-];
 
 /// Pump.fun have two variants:
 /// 1. buy [0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea]
