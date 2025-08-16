@@ -1,0 +1,38 @@
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+use yellowstone_grpc_proto::prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta};
+
+use crate::swaps::{addresses::RAYDIUM_V4_PUBKEY, finder::{SwapFinder, SwapFinderExt, SwapV2}, private::Sealed};
+
+impl Sealed for RaydiumV4SwapFinder {}
+
+pub struct RaydiumV4SwapFinder {}
+
+// Ray v4 swaps have the discriminant [0x09], followed by the input amount and the min amount out
+// Swap direction is determined the input/output token accounts ([-3], [-2] respectively)
+impl SwapFinder for RaydiumV4SwapFinder {
+    fn amm_ix(ix: &Instruction) -> Pubkey {
+        return ix.accounts[1].pubkey;
+    }
+
+    fn amm_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> Pubkey {
+        return account_keys[inner_ix.accounts[1] as usize];
+    }
+
+    fn swap_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey) {
+        return (
+            ix.accounts[ix.accounts.len() - 3].pubkey,
+            ix.accounts[ix.accounts.len() - 2].pubkey,
+        );
+    }
+
+    fn swap_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
+        return (
+            account_keys[inner_ix.accounts[inner_ix.accounts.len() - 3] as usize],
+            account_keys[inner_ix.accounts[inner_ix.accounts.len() - 2] as usize],
+        );
+    }
+
+    fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
+        return Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_V4_PUBKEY, &[0x09], 17)
+    }
+}
