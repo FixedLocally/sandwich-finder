@@ -1,7 +1,7 @@
 use solana_sdk::pubkey::Pubkey;
 use yellowstone_grpc_proto::prelude::{InnerInstruction, TransactionStatusMeta};
 
-use crate::swaps::addresses::{SYSTEM_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID};
+use crate::swaps::addresses::{SYSTEM_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, WSOL_MINT};
 
 pub fn mint_of(pubkey: &Pubkey, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Option<String> {
     let target_index = account_keys.iter().position(|key| key == pubkey);
@@ -55,7 +55,7 @@ pub fn token_transferred_inner(inner_ix: &InnerInstruction, account_keys: &Vec<P
             return Some((
                 account_keys[0],
                 account_keys[1],
-                "So11111111111111111111111111111111111111112".to_string(),
+                WSOL_MINT.to_string(),
                 u64::from_le_bytes(inner_ix.data[4..12].try_into().unwrap()),
             ));
         },
