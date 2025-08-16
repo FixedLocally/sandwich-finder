@@ -23,7 +23,8 @@ pub fn token_transferred_inner(inner_ix: &InnerInstruction, account_keys: &Vec<P
     if program_id != TOKEN_PROGRAM_ID && program_id != TOKEN_2022_PROGRAM_ID {
         return None;
     }
-    if inner_ix.data.len() != 9 {
+    // ix, amount[, decimals]
+    if inner_ix.data.len() < 9 {
         return None;
     }
     let (from_index, to_index) = match inner_ix.data[0] {

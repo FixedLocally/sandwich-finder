@@ -7,8 +7,8 @@ impl Sealed for RaydiumV4SwapFinder {}
 
 pub struct RaydiumV4SwapFinder {}
 
-// Ray v4 swaps have the discriminant [0x09], followed by the input amount and the min amount out
-// Swap direction is determined the input/output token accounts ([-3], [-2] respectively)
+/// Ray v4 swaps have the discriminant [0x09], followed by the input amount and the min amount out
+/// Swap direction is determined the input/output token accounts ([-3], [-2] respectively)
 impl SwapFinder for RaydiumV4SwapFinder {
     fn amm_ix(ix: &Instruction) -> Pubkey {
         return ix.accounts[1].pubkey;
