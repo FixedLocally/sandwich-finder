@@ -157,10 +157,10 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             println!("{input_ata} -> {pool_output_ata}, {pool_input_ata} -> {output_ata}");
             inner_ixs.instructions.iter().for_each(|inner_ix| {
                 if let Some((from, to, mint, amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
-                    if from == input_ata && (to == pool_output_ata || to == Pubkey::default()) {
+                    if from == input_ata && (to == pool_output_ata || pool_output_ata == Pubkey::default()) {
                         input_mint = Some(mint);
                         input_amount = amount;
-                    } else if to == output_ata && (from == pool_input_ata || from == Pubkey::default()) {
+                    } else if to == output_ata && (from == pool_input_ata || pool_input_ata == Pubkey::default()) {
                         output_mint = Some(mint);
                         output_amount = amount;
                     }
@@ -215,10 +215,10 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                     continue;
                 }
                 if let Some((from, to, mint, amount)) = token_transferred_inner(&next_inner_ix, &account_keys, &meta) {
-                    if from == input_ata && (to == pool_input_ata || to == Pubkey::default()) {
+                    if from == input_ata && (to == pool_input_ata || pool_input_ata == Pubkey::default()) {
                         input_mint = Some(mint);
                         input_amount = amount;
-                    } else if to == output_ata && (from == pool_output_ata || from == Pubkey::default()) {
+                    } else if to == output_ata && (from == pool_output_ata || pool_output_ata == Pubkey::default()) {
                         output_mint = Some(mint);
                         output_amount = amount;
                     }

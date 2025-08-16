@@ -8,10 +8,15 @@ pub fn mint_of(pubkey: &Pubkey, account_keys: &Vec<Pubkey>, meta: &TransactionSt
     if target_index.is_none() {
         return None;
     }
-    meta.pre_token_balances
+    let pre = meta.pre_token_balances
         .iter()
         .find(|&balance| balance.account_index == target_index.unwrap() as u32)
-        .map_or(None, |balance| Some(balance.mint.clone()))
+        .map_or(None, |balance| Some(balance.mint.clone()));
+    let post = meta.post_token_balances
+        .iter()
+        .find(|&balance| balance.account_index == target_index.unwrap() as u32)
+        .map_or(None, |balance| Some(balance.mint.clone()));
+    return pre.or(post);
 }
 
 pub fn token_transferred_inner(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Option<(Pubkey, Pubkey, String, u64)> {
