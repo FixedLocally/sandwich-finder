@@ -2,7 +2,7 @@ use std::{collections::HashMap, env};
 
 use dashmap::DashMap;
 use futures::{SinkExt as _, StreamExt as _};
-use sandwich_finder::{swaps::{finder::SwapFinderExt as _, raydium_v4::RaydiumV4SwapFinder, raydium_v5::RaydiumV5SwapFinder}, utils::pubkey_from_slice};
+use sandwich_finder::{swaps::{finder::SwapFinderExt as _, raydium_v4::RaydiumV4SwapFinder, raydium_v5::RaydiumV5SwapFinder, raydium_lp::RaydiumLPSwapFinder}, utils::pubkey_from_slice};
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{account::ReadableAccount as _, address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount}, bs58, commitment_config::CommitmentConfig, instruction::{AccountMeta, Instruction}, pubkey::Pubkey};
 use tokio::join;
@@ -178,7 +178,8 @@ async fn swap_finder_loop() {
                     // println!("processing tx {} in slot {}", bs58::encode(&tx.0.signature).into_string(), slot);
                     let swaps = [
                         RaydiumV4SwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
-                        RaydiumV5SwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2)
+                        RaydiumV5SwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
+                        RaydiumLPSwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
                     ].concat();
                     if swaps.is_empty() {
                         return;
