@@ -12,6 +12,7 @@ pub struct RaydiumV5SwapFinder {}
 /// 2. swap_base_output [0x37, 0xd9, 0x62, 0x56, 0xa3, 0x4a, 0xb4, 0xad]
 /// In/out amounts follows the discriminant, with one being exact and the other being the worst acceptable value.
 /// Swap direction is determined by the input/output token accounts ([4], [5] respectively)
+/// Unlike v4, the ordering of the pool's ATA also depends on the swap direction.
 impl SwapFinder for RaydiumV5SwapFinder {
     fn amm_ix(ix: &Instruction) -> Pubkey {
         return ix.accounts[3].pubkey;
@@ -21,17 +22,31 @@ impl SwapFinder for RaydiumV5SwapFinder {
         return account_keys[inner_ix.accounts[3] as usize];
     }
 
-    fn swap_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey) {
+    fn user_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey) {
         return (
             ix.accounts[4].pubkey,
             ix.accounts[5].pubkey,
         );
     }
 
-    fn swap_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
+    fn user_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
         return (
             account_keys[inner_ix.accounts[4] as usize],
             account_keys[inner_ix.accounts[5] as usize],
+        );
+    }
+    
+    fn pool_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey) {
+        return (
+            ix.accounts[7].pubkey,
+            ix.accounts[6].pubkey,
+        );
+    }
+    
+    fn pool_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
+        return (
+            account_keys[inner_ix.accounts[7] as usize],
+            account_keys[inner_ix.accounts[6] as usize],
         );
     }
 

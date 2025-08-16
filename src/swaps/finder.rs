@@ -80,6 +80,8 @@ impl SwapV2 {
 
 pub trait SwapFinder {
     /// Returns the swaps utilising a program found in the given instruction and inner instructions.
+    /// A swap involves an inner instruction that the user's out ATA sends tokens to the pool's in ATA,
+    /// and one that the pool's out ATA sends tokens to the user's in ATA.
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2>;
 
     /// Returns the AMM address for the swap instruction. The instruction will have matching program ID, discriminant and enough instruction data.
@@ -87,10 +89,26 @@ pub trait SwapFinder {
     /// Like [`SwapFinder::amm_ix`], but takes an inner instruction and the account keys vector for key resolution.
     fn amm_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> Pubkey;
 
-    /// Returns the in/out ATAs involved in the swap, in that order. The instruction follows the same constraints as above.
-    fn swap_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey);
-    /// Like [`SwapFinder::swap_ata_ix`], but takes an inner instruction and the account keys vector for key resolution.
-    fn swap_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey);
+    /// Returns the user's in/out ATAs involved in the swap, in that order. The instruction follows the same constraints as above.
+    fn user_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey);
+    /// Like [`SwapFinder::user_ata_ix`], but takes an inner instruction and the account keys vector for key resolution.
+    fn user_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey);
+
+    /// Returns the pool's in/out ATAs involved in the swap, in that order. The instruction follows the same constraints as above.
+    /// Can return [`Pubkey::default()`] to bypass this check.
+    fn pool_ata_ix(_ix: &Instruction) -> (Pubkey, Pubkey) {
+        return (
+            Pubkey::default(),
+            Pubkey::default(),
+        );
+    }
+    /// Like [`SwapFinder::pool_ata_ix`], but takes an inner instruction and the account keys vector for key resolution.
+    fn pool_ata_inner_ix(_inner_ix: &InnerInstruction, _account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
+        return (
+            Pubkey::default(),
+            Pubkey::default(),
+        );
+    }
 }
 
 /// This trait contains helper methods not meant to be overridden by the implementors of [`SwapFinder`].
@@ -134,13 +152,15 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let mut output_amount = 0;
             let mut input_mint = None;
             let mut output_mint = None;
-            let (input_ata, output_ata) = Self::swap_ata_ix(ix);
+            let (input_ata, output_ata) = Self::user_ata_ix(ix);
+            let (pool_input_ata, pool_output_ata) = Self::pool_ata_ix(ix);
+            println!("{input_ata} -> {pool_output_ata}, {pool_input_ata} -> {output_ata}");
             inner_ixs.instructions.iter().for_each(|inner_ix| {
                 if let Some((from, to, mint, amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
-                    if from == input_ata {
+                    if from == input_ata && (to == pool_output_ata || to == Pubkey::default()) {
                         input_mint = Some(mint);
                         input_amount = amount;
-                    } else if to == output_ata {
+                    } else if to == output_ata && (from == pool_input_ata || from == Pubkey::default()) {
                         output_mint = Some(mint);
                         output_amount = amount;
                     }
@@ -187,17 +207,18 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let mut output_amount = 0;
             let mut input_mint = None;
             let mut output_mint = None;
-            let (input_ata, output_ata) = Self::swap_ata_inner_ix(inner_ix, account_keys);
+            let (input_ata, output_ata) = Self::user_ata_inner_ix(inner_ix, account_keys);
+            let (pool_input_ata, pool_output_ata) = Self::pool_ata_inner_ix(inner_ix, account_keys);
             for j in i..inner_ixs.instructions.len() {
                 let next_inner_ix = &inner_ixs.instructions[j];
                 if next_inner_ix.program_id_index >= account_keys.len() as u32 {
                     continue;
                 }
                 if let Some((from, to, mint, amount)) = token_transferred_inner(&next_inner_ix, &account_keys, &meta) {
-                    if from == input_ata {
+                    if from == input_ata && (to == pool_input_ata || to == Pubkey::default()) {
                         input_mint = Some(mint);
                         input_amount = amount;
-                    } else if to == output_ata {
+                    } else if to == output_ata && (from == pool_output_ata || from == Pubkey::default()) {
                         output_mint = Some(mint);
                         output_amount = amount;
                     }
