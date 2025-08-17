@@ -39,7 +39,7 @@ pub fn token_transferred_inner(inner_ix: &InnerInstruction, account_keys: &Vec<P
                 return None;
             }
             let from_mint = mint_of(&account_keys[from_index as usize], &account_keys, &meta);
-            let to_mint: Option<String> = mint_of(&account_keys[to_index as usize], &account_keys, &meta);
+            let to_mint = mint_of(&account_keys[to_index as usize], &account_keys, &meta);
             if from_mint.is_none() && to_mint.is_none() {
                 return None;
             }

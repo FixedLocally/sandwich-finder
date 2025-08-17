@@ -154,7 +154,6 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let mut output_mint = None;
             let (input_ata, output_ata) = Self::user_ata_ix(ix);
             let (pool_input_ata, pool_output_ata) = Self::pool_ata_ix(ix);
-            println!("{input_ata} -> {pool_output_ata}, {pool_input_ata} -> {output_ata}");
             inner_ixs.instructions.iter().for_each(|inner_ix| {
                 if let Some((from, to, mint, amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
                     if from == input_ata && (to == pool_output_ata || pool_output_ata == Pubkey::default()) {
@@ -166,6 +165,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                     }
                 }
             });
+            // Sometimes the output tx may not exist due to tiny input that rounds the output to 0.
             return vec![
                 SwapV2::new(
                     None,
