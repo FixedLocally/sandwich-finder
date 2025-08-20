@@ -8,7 +8,7 @@ async fn main() {
     dotenv::dotenv().ok();
     let rpc_client = RpcClient::new(env::var("RPC_URL").unwrap());
     let epoch = rpc_client.get_epoch_info().await.unwrap().epoch;
-    let leader_schedule = rpc_client.get_leader_schedule(None).await.unwrap();
+    let leader_schedule = rpc_client.get_leader_schedule(Some(epoch * 432000)).await.unwrap();
     let leader_schedule = leader_schedule.unwrap();
     let rev_leader_schedule: HashMap<u64, &String> = leader_schedule.iter().fold(HashMap::new(), |mut acc, (k, v)| {
         v.iter().for_each(|v| {

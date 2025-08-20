@@ -178,6 +178,7 @@ pub struct DecompiledTransaction {
     swaps: Vec<Swap>,
     payer: Pubkey,
     order: u64,
+    account_keys: Vec<Pubkey>,
 }
 
 impl DecompiledTransaction {
@@ -187,6 +188,7 @@ impl DecompiledTransaction {
         swaps: Vec<Swap>,
         payer: Pubkey,
         order: u64,
+        account_keys: Vec<Pubkey>,
     ) -> Self {
         Self {
             sig,
@@ -194,6 +196,7 @@ impl DecompiledTransaction {
             swaps,
             payer,
             order,
+            account_keys,
         }
     }
 }
@@ -379,6 +382,7 @@ pub async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &Rpc
                         swaps,
                         account_keys[0],
                         raw_tx.index,
+                        account_keys,
                     ));
                 }
             }
