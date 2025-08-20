@@ -28,16 +28,18 @@ impl WhirlpoolSwapFinder {
 impl SwapFinder for WhirlpoolSwapFinder {
     fn amm_ix(ix: &Instruction) -> Pubkey {
         if Self::is_swap_v2(&ix.data) {
-            return ix.accounts[4].pubkey; // swapV2
+            ix.accounts[4].pubkey // swapV2
+        } else {
+            ix.accounts[2].pubkey // swap
         }
-        return ix.accounts[2].pubkey; // swap
     }
 
     fn amm_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> Pubkey {
         if Self::is_swap_v2(&inner_ix.data) {
-            return account_keys[inner_ix.accounts[4] as usize]; // swapV2
+            account_keys[inner_ix.accounts[4] as usize] // swapV2
+        } else {
+            account_keys[inner_ix.accounts[2] as usize] // swap
         }
-        return account_keys[inner_ix.accounts[2] as usize]; // swap
     }
 
     fn user_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey) {
@@ -101,12 +103,12 @@ impl SwapFinder for WhirlpoolSwapFinder {
     }
 
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
-        return [
+        [
             // swap_base_input
             Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &WHIRLPOOL_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 24),
             // swap_base_output
             Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &WHIRLPOOL_PUBKEY, &[0x2b, 0x04, 0xed, 0x0b, 0x1a, 0xc9, 0x1e, 0x62], 24),
-        ].concat();
+        ].concat()
     }
 }
 
@@ -186,54 +188,54 @@ impl<
     const D7: u8,
 > SwapFinder for WhirlpoolTwoHopSwapFinder<A2B, AMM, UA, UB, PA, PB, DS, D0, D1, D2, D3, D4, D5, D6, D7> {
     fn amm_ix(ix: &Instruction) -> Pubkey {
-        return ix.accounts[AMM].pubkey;
+        ix.accounts[AMM].pubkey
     }
 
     fn amm_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> Pubkey {
-        return account_keys[inner_ix.accounts[AMM] as usize];
+        account_keys[inner_ix.accounts[AMM] as usize]
     }
     
     fn user_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey) {
         if Self::is_from_a_to_b(&ix.data) {
-            return (ix.accounts[UA].pubkey, ix.accounts[UB].pubkey); // aToB
+            (ix.accounts[UA].pubkey, ix.accounts[UB].pubkey) // aToB
         } else {
-            return (ix.accounts[UB].pubkey, ix.accounts[UA].pubkey); // bToA
+            (ix.accounts[UB].pubkey, ix.accounts[UA].pubkey) // bToA
         }
     }
     
     fn user_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
         if Self::is_from_a_to_b(&inner_ix.data) {
-            return (
+            (
                 account_keys[inner_ix.accounts[UA] as usize],
                 account_keys[inner_ix.accounts[UB] as usize],
-            ); // aToB
+            ) // aToB
         } else {
-            return (
+            (
                 account_keys[inner_ix.accounts[UB] as usize],
                 account_keys[inner_ix.accounts[UA] as usize],
-            ); // bToA
+            ) // bToA
         }
     }
 
     fn pool_ata_ix(_ix: &Instruction) -> (Pubkey, Pubkey) {
         if Self::is_from_a_to_b(&_ix.data) {
-            return (_ix.accounts[PB].pubkey, _ix.accounts[PA].pubkey); // aToB
+            (_ix.accounts[PB].pubkey, _ix.accounts[PA].pubkey) // aToB
         } else {
-            return (_ix.accounts[PA].pubkey, _ix.accounts[PB].pubkey); // bToA
+            (_ix.accounts[PA].pubkey, _ix.accounts[PB].pubkey) // bToA
         }
     }
 
     fn pool_ata_inner_ix(_inner_ix: &InnerInstruction, _account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
         if Self::is_from_a_to_b(&_inner_ix.data) {
-            return (
+            (
                 _account_keys[_inner_ix.accounts[PB] as usize],
                 _account_keys[_inner_ix.accounts[PA] as usize],
-            ); // aToB
+            ) // aToB
         } else {
-            return (
+            (
                 _account_keys[_inner_ix.accounts[PA] as usize],
                 _account_keys[_inner_ix.accounts[PB] as usize],
-            ); // bToA
+            ) // bToA
         }
     }
 

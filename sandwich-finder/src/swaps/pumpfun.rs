@@ -70,27 +70,27 @@ impl PumpFunSwapFinder {
 
 impl SwapFinder for PumpFunSwapFinder {
     fn amm_ix(ix: &Instruction) -> Pubkey {
-        return ix.accounts[3].pubkey;
+        ix.accounts[3].pubkey
     }
 
     fn amm_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> Pubkey {
-        return account_keys[inner_ix.accounts[3] as usize];
+        account_keys[inner_ix.accounts[3] as usize]
     }
 
     fn user_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey) {
         let (in_index, out_index) = Self::user_in_out_index(&ix.data);
-        return (
+        (
             ix.accounts[in_index].pubkey,
             ix.accounts[out_index].pubkey,
-        );
+        )
     }
 
     fn user_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
         let (in_index, out_index) = Self::user_in_out_index(&inner_ix.data);
-        return (
+        (
             account_keys[inner_ix.accounts[in_index] as usize],
             account_keys[inner_ix.accounts[out_index] as usize],
-        );
+        )
     }
 
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, _meta: &TransactionStatusMeta) -> Vec<SwapV2> {
@@ -128,8 +128,8 @@ impl SwapFinder for PumpFunSwapFinder {
             if inner_ix.data.len() < 24 {
                 continue; // Not a swap
             }
-            if inner_ix.data[0..8] == [0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea] ||
-               inner_ix.data[0..8] == [0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad] {
+            if inner_ix.data.starts_with(&[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea]) ||
+               inner_ix.data.starts_with(&[0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad]) {
                 // Valid swap instruction
                 let (input_ata, output_ata) = Self::user_ata_inner_ix(inner_ix, account_keys);
                 for j in i + 1..inner_ixs.instructions.len() {

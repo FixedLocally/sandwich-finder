@@ -42,47 +42,47 @@ impl RaydiumLPSwapFinder {
 
 impl SwapFinder for RaydiumLPSwapFinder {
     fn amm_ix(ix: &Instruction) -> Pubkey {
-        return ix.accounts[4].pubkey;
+        ix.accounts[4].pubkey
     }
 
     fn amm_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> Pubkey {
-        return account_keys[inner_ix.accounts[4] as usize];
+        account_keys[inner_ix.accounts[4] as usize]
     }
 
     fn user_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey) {
         let (in_index, out_index) = Self::user_in_out_index(&ix.data);
-        return (
+        (
             ix.accounts[in_index].pubkey,
             ix.accounts[out_index].pubkey,
-        );
+        )
     }
 
     fn user_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
         let (in_index, out_index) = Self::user_in_out_index(&inner_ix.data);
-        return (
+        (
             account_keys[inner_ix.accounts[in_index] as usize],
             account_keys[inner_ix.accounts[out_index] as usize],
-        );
+        )
     }
     
     fn pool_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey) {
         let (in_index, out_index) = Self::pool_in_out_index(&ix.data);
-        return (
+        (
             ix.accounts[in_index].pubkey,
             ix.accounts[out_index].pubkey,
-        );
+        )
     }
     
     fn pool_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
         let (in_index, out_index) = Self::pool_in_out_index(&inner_ix.data);
-        return (
+        (
             account_keys[inner_ix.accounts[in_index] as usize],
             account_keys[inner_ix.accounts[out_index] as usize],
-        );
+        )
     }
 
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
-        return [
+        [
             // buy_exact_in
             Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_LP_PUBKEY, &[0xfa, 0xea, 0x0d, 0x7b, 0xd5, 0x9c, 0x13, 0xec], 32),
             // sell_exact_in
@@ -91,6 +91,6 @@ impl SwapFinder for RaydiumLPSwapFinder {
             Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_LP_PUBKEY, &[0x18, 0xd3, 0x74, 0x28, 0x69, 0x03, 0x99, 0x38], 32),
             // sell_exact_out
             Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_LP_PUBKEY, &[0x5f, 0xc8, 0x47, 0x22, 0x8, 0x9, 0xb, 0xa6], 32),
-        ].concat();
+        ].concat()
     }
 }

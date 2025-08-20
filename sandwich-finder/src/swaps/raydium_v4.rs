@@ -12,28 +12,28 @@ pub struct RaydiumV4SwapFinder {}
 /// The pool's ATA are at [-12] and [-13] but due to the ordering the order can't be reliably determined
 impl SwapFinder for RaydiumV4SwapFinder {
     fn amm_ix(ix: &Instruction) -> Pubkey {
-        return ix.accounts[1].pubkey;
+        ix.accounts[1].pubkey
     }
 
     fn amm_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> Pubkey {
-        return account_keys[inner_ix.accounts[1] as usize];
+        account_keys[inner_ix.accounts[1] as usize]
     }
 
     fn user_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey) {
-        return (
+        (
             ix.accounts[ix.accounts.len() - 3].pubkey,
             ix.accounts[ix.accounts.len() - 2].pubkey,
-        );
+        )
     }
 
     fn user_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
-        return (
+        (
             account_keys[inner_ix.accounts[inner_ix.accounts.len() - 3] as usize],
             account_keys[inner_ix.accounts[inner_ix.accounts.len() - 2] as usize],
-        );
+        )
     }
 
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
-        return Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_V4_PUBKEY, &[0x09], 17)
+        Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_V4_PUBKEY, &[0x09], 17)
     }
 }
