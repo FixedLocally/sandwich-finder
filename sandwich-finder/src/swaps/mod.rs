@@ -4,6 +4,7 @@ mod utils;
 
 pub mod finder;
 
+pub mod dlmm;
 pub mod pumpamm;
 pub mod pumpfun;
 pub mod raydium_v4;
