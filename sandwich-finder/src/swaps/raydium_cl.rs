@@ -12,38 +12,38 @@ pub struct RaydiumCLSwapFinder {}
 /// 2. swapV2 [0x2b, 0x04, 0xed, 0x0b, 0x1a, 0xc9, 0x1e, 0x62] 
 impl SwapFinder for RaydiumCLSwapFinder {
     fn amm_ix(ix: &Instruction) -> Pubkey {
-        ix.accounts[3].pubkey
+        ix.accounts[2].pubkey
     }
 
     fn amm_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> Pubkey {
-        account_keys[inner_ix.accounts[3] as usize]
+        account_keys[inner_ix.accounts[2] as usize]
     }
 
     fn user_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey) {
         (
+            ix.accounts[3].pubkey,
             ix.accounts[4].pubkey,
-            ix.accounts[5].pubkey,
         )
     }
 
     fn user_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
         (
+            account_keys[inner_ix.accounts[3] as usize],
             account_keys[inner_ix.accounts[4] as usize],
-            account_keys[inner_ix.accounts[5] as usize],
         )
     }
     
     fn pool_ata_ix(ix: &Instruction) -> (Pubkey, Pubkey) {
         (
-            ix.accounts[7].pubkey,
             ix.accounts[6].pubkey,
+            ix.accounts[5].pubkey,
         )
     }
     
     fn pool_ata_inner_ix(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>) -> (Pubkey, Pubkey) {
         (
-            account_keys[inner_ix.accounts[7] as usize],
             account_keys[inner_ix.accounts[6] as usize],
+            account_keys[inner_ix.accounts[5] as usize],
         )
     }
 
