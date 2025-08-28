@@ -40,7 +40,17 @@ impl SwapFinder for Discoverer {
                 for inner_ix in &inner_ixs.instructions {
                     let program_id = account_keys[inner_ix.program_id_index as usize];
                     match program_id {
-                        TOKEN_PROGRAM_ID | TOKEN_2022_PROGRAM_ID => swap_count += 1,
+                        TOKEN_PROGRAM_ID | TOKEN_2022_PROGRAM_ID => {
+                            if inner_ix.data.len() < 9 {
+                                continue;
+                            }
+                            match inner_ix.data[0] {
+                                3 | 12 => { // Transfer or TransferChecked
+                                    swap_count += 1;
+                                },
+                                _ => {}
+                            }
+                        },
                         _ => {}
                     }
                 }

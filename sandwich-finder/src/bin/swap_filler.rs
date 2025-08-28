@@ -2,7 +2,7 @@ use std::{collections::HashMap, env};
 
 use dashmap::DashMap;
 use futures::{SinkExt as _, StreamExt as _};
-use sandwich_finder::{swaps::{discoverer::Discoverer, dlmm::DLMMSwapFinder, finder::SwapFinderExt as _, meteora::MeteoraSwapFinder, pumpamm::PumpAmmSwapFinder, pumpfun::PumpFunSwapFinder, raydium_lp::RaydiumLPSwapFinder, raydium_v4::RaydiumV4SwapFinder, raydium_v5::RaydiumV5SwapFinder, whirlpool::{WhirlpoolSwapFinder, WhirlpoolTwoHopSwapFinder1, WhirlpoolTwoHopSwapFinder2, WhirlpoolTwoHopSwapV2Finder1, WhirlpoolTwoHopSwapV2Finder2}}, utils::pubkey_from_slice};
+use sandwich_finder::{swaps::{discoverer::Discoverer, dlmm::DLMMSwapFinder, finder::SwapFinderExt as _, meteora::MeteoraSwapFinder, pumpamm::PumpAmmSwapFinder, pumpfun::PumpFunSwapFinder, raydium_cl::RaydiumCLSwapFinder, raydium_lp::RaydiumLPSwapFinder, raydium_v4::RaydiumV4SwapFinder, raydium_v5::RaydiumV5SwapFinder, whirlpool::{WhirlpoolSwapFinder, WhirlpoolTwoHopSwapFinder1, WhirlpoolTwoHopSwapFinder2, WhirlpoolTwoHopSwapV2Finder1, WhirlpoolTwoHopSwapV2Finder2}}, utils::pubkey_from_slice};
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{account::ReadableAccount as _, address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount}, bs58, commitment_config::CommitmentConfig, instruction::{AccountMeta, Instruction}, pubkey::Pubkey};
 use tokio::join;
@@ -180,6 +180,7 @@ async fn swap_finder_loop() {
                         RaydiumV4SwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
                         RaydiumV5SwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
                         RaydiumLPSwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
+                        RaydiumCLSwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
                         PumpFunSwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
                         PumpAmmSwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
                         WhirlpoolSwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
@@ -195,7 +196,7 @@ async fn swap_finder_loop() {
                         if swaps.is_empty() {
                             return;
                         }
-                        println!("[Discoverer] tx {} ix #{} in slot {} triggered {} token program instructions", bs58::encode(&tx.0.signature).into_string(), swaps[0].ix_index(), slot, swaps.len());
+                        println!("[Discoverer] tx {} ix #{} in slot {} triggered program {}", bs58::encode(&tx.0.signature).into_string(), swaps[0].ix_index(), slot, swaps[0].program());
                         return;
                     }
                     println!("found {} swaps in slot {} tx {}", swaps.len(), slot, bs58::encode(&tx.0.signature).into_string());
