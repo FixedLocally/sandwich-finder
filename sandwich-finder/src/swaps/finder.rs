@@ -1,10 +1,16 @@
+use std::fmt::Debug;
+
 use derive_getters::Getters;
 use serde::Serialize;
+use sandwich_finder_derive::HelloMacro;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::{geyser::SubscribeUpdateTransactionInfo, prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta}};
 
 use crate::swaps::{utils::token_transferred_inner, private};
 
+pub trait HelloMacro {
+    fn hello_macro(&self);
+}
 
 #[derive(Clone, Serialize, Getters)]
 #[serde(rename_all = "camelCase")]
@@ -12,7 +18,7 @@ pub struct TransactionV2 {
 
 }
 
-#[derive(Clone, Debug, Serialize, Getters)]
+#[derive(Clone, Serialize, Getters, HelloMacro)]
 #[serde(rename_all = "camelCase")]
 pub struct SwapV2 {
     // The wrapper program for this swap, if any
@@ -78,6 +84,22 @@ impl SwapV2 {
     }
 }
 
+impl Debug for SwapV2 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // f.debug_struct("SwapV2").field("outer_program", &self.outer_program).field("program", &self.program).field("amm", &self.amm).field("input_mint", &self.input_mint).field("output_mint", &self.output_mint).field("input_amount", &self.input_amount).field("output_amount", &self.output_amount).field("input_ata", &self.input_ata).field("output_ata", &self.output_ata).field("sig_id", &self.sig_id).field("slot", &self.slot).field("inclusion_order", &self.inclusion_order).field("ix_index", &self.ix_index).field("inner_ix_index", &self.inner_ix_index).finish()
+        f.write_str("Swap")?;
+        f.write_str(&format!(" in slot {} (order {}, ix {}, inner_ix {:?})\n", self.slot, self.inclusion_order, self.ix_index, self.inner_ix_index))?;
+        if let Some(outer_program) = &self.outer_program {
+            f.write_str(&format!(" via {}\n", outer_program))?;
+        }
+        f.write_str(&format!(" on {} market {}\n", self.program, self.amm))?;
+        f.write_str(&format!(" Route {} -> {}", self.input_mint, self.output_mint))?;
+        f.write_str(&format!(" Amounts {} -> {}\n", self.input_amount, self.output_amount))?;
+        f.write_str(&format!(" ATAs {} -> {}", self.input_ata, self.output_ata))?;
+        Ok(())
+    }
+}
+
 pub trait SwapFinder {
     /// Returns the swaps utilising a program found in the given instruction and inner instructions.
     /// A swap involves an inner instruction that the user's out ATA sends tokens to the pool's in ATA,
@@ -109,6 +131,11 @@ pub trait SwapFinder {
             Pubkey::default(),
         );
     }
+
+    /// Number of inner instructions to skip before the actual relevant transfers.
+    fn ixs_to_skip() -> usize {
+        0
+    }
 }
 
 /// This trait contains helper methods not meant to be overridden by the implementors of [`SwapFinder`].
@@ -139,6 +166,10 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
         discriminant: &[u8],
         data_length: usize,
     ) -> Vec<SwapV2> {
+        let ixs_to_skip = Self::ixs_to_skip();
+        if inner_ixs.instructions.len() <= ixs_to_skip {
+            return vec![];
+        }
         if ix.program_id == *program_id {
             // data size check
             if data_length < discriminant.len() || ix.data.len() < data_length {
@@ -154,7 +185,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let mut output_mint = None;
             let (input_ata, output_ata) = Self::user_ata_ix(ix);
             let (pool_input_ata, pool_output_ata) = Self::pool_ata_ix(ix);
-            inner_ixs.instructions.iter().for_each(|inner_ix| {
+            inner_ixs.instructions.iter().skip(ixs_to_skip).for_each(|inner_ix| {
                 if let Some((from, to, mint, amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
                     if from == input_ata && (to == pool_output_ata || pool_output_ata == Pubkey::default()) {
                         input_mint = Some(mint);
@@ -209,7 +240,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let mut output_mint = None;
             let (input_ata, output_ata) = Self::user_ata_inner_ix(inner_ix, account_keys);
             let (pool_input_ata, pool_output_ata) = Self::pool_ata_inner_ix(inner_ix, account_keys);
-            for j in i..inner_ixs.instructions.len() {
+            for j in i + ixs_to_skip..inner_ixs.instructions.len() {
                 let next_inner_ix = &inner_ixs.instructions[j];
                 if next_inner_ix.program_id_index >= account_keys.len() as u32 {
                     continue;
