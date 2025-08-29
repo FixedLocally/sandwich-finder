@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use debug_print::debug_println;
 use derive_getters::Getters;
 use serde::Serialize;
 use sandwich_finder_derive::HelloMacro;
@@ -166,17 +167,21 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
         discriminant: &[u8],
         data_length: usize,
     ) -> Vec<SwapV2> {
+        debug_println!("looking for swaps in ix #{} with program id {} and discriminant {:?}", inner_ixs.index, program_id, discriminant);
         let ixs_to_skip = Self::ixs_to_skip();
         if inner_ixs.instructions.len() <= ixs_to_skip {
+            debug_println!("too few inner ixs");
             return vec![];
         }
         if ix.program_id == *program_id {
             // data size check
             if data_length < discriminant.len() || ix.data.len() < data_length {
+                debug_println!("too little data");
                 return vec![];
             }
             // discriminant check
             if ix.data[0..discriminant.len()] != discriminant[..] {
+                debug_println!("wrong discriminant");
                 return vec![];
             }
             let mut input_amount = 0;
@@ -220,17 +225,21 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
         let mut next_logical_ix = 0;
         inner_ixs.instructions.iter().enumerate().for_each(|(i, inner_ix)| {
             if i < next_logical_ix {
+                debug_println!("inner: skipping inner ix {} due to already processed", i);
                 return; // Skip already processed instructions
             }
             if inner_ix.program_id_index >= account_keys.len() as u32 {
+                debug_println!("inner: too few accounts");
                 return;
             }
             // program id check
             if account_keys[inner_ix.program_id_index as usize] != *program_id {
+                debug_println!("inner: wrong program id");
                 return;
             }
             // data size & discriminant check
             if inner_ix.data.len() < data_length || inner_ix.data[0..discriminant.len()] != discriminant[..] {
+                debug_println!("inner: too few data/wrong discriminant {:?}/{:?}", inner_ix.data, discriminant);
                 return;
             }
 
@@ -240,16 +249,17 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let mut output_mint = None;
             let (input_ata, output_ata) = Self::user_ata_inner_ix(inner_ix, account_keys);
             let (pool_input_ata, pool_output_ata) = Self::pool_ata_inner_ix(inner_ix, account_keys);
+            debug_println!("{} -> {} (pool: {} -> {})", input_ata, output_ata, pool_input_ata, pool_output_ata);
             for j in i + ixs_to_skip..inner_ixs.instructions.len() {
                 let next_inner_ix = &inner_ixs.instructions[j];
                 if next_inner_ix.program_id_index >= account_keys.len() as u32 {
                     continue;
                 }
                 if let Some((from, to, mint, amount)) = token_transferred_inner(&next_inner_ix, &account_keys, &meta) {
-                    if from == input_ata && (to == pool_input_ata || pool_input_ata == Pubkey::default()) {
+                    if from == input_ata && (to == pool_output_ata || pool_output_ata == Pubkey::default()) {
                         input_mint = Some(mint);
                         input_amount = amount;
-                    } else if to == output_ata && (from == pool_output_ata || pool_output_ata == Pubkey::default()) {
+                    } else if to == output_ata && (from == pool_input_ata || pool_input_ata == Pubkey::default()) {
                         output_mint = Some(mint);
                         output_amount = amount;
                     }
