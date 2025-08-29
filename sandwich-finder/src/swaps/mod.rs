@@ -7,6 +7,7 @@ pub mod finder;
 pub mod discoverer;
 pub mod dlmm;
 pub mod meteora;
+pub mod meteora_damm_v2;
 pub mod meteora_dbc;
 pub mod openbook_v2;
 pub mod pumpamm;
