@@ -7,6 +7,7 @@ pub mod finder;
 pub mod discoverer;
 pub mod dlmm;
 pub mod meteora;
+pub mod openbook_v2;
 pub mod pumpamm;
 pub mod pumpfun;
 pub mod raydium_cl;
