@@ -137,6 +137,11 @@ pub trait SwapFinder {
     fn ixs_to_skip() -> usize {
         0
     }
+
+    /// The indexes of the accounts that definitely won't be involved in the swap, such as referral/fee accounts.
+    fn blacklist_ata_indexs() -> Vec<usize> {
+        vec![]
+    }
 }
 
 /// This trait contains helper methods not meant to be overridden by the implementors of [`SwapFinder`].
@@ -169,6 +174,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
     ) -> Vec<SwapV2> {
         debug_println!("looking for swaps in ix #{} with program id {} and discriminant {:?}", inner_ixs.index, program_id, discriminant);
         let ixs_to_skip = Self::ixs_to_skip();
+        let blacklist_ata_indexes = Self::blacklist_ata_indexs();
         if inner_ixs.instructions.len() <= ixs_to_skip {
             debug_println!("too few inner ixs");
             return vec![];
@@ -190,8 +196,12 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let mut output_mint = None;
             let (input_ata, output_ata) = Self::user_ata_ix(ix);
             let (pool_input_ata, pool_output_ata) = Self::pool_ata_ix(ix);
+            let blacklist_atas: Vec<Pubkey> = blacklist_ata_indexes.iter().filter_map(|&i| ix.accounts.get(i).map(|acc| acc.pubkey)).collect();
             inner_ixs.instructions.iter().skip(ixs_to_skip).for_each(|inner_ix| {
                 if let Some((from, to, mint, amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
+                    if blacklist_atas.contains(&from) || blacklist_atas.contains(&to) {
+                        return; // Skip blacklisted ATAs
+                    }
                     if from == input_ata && (to == pool_output_ata || pool_output_ata == Pubkey::default()) {
                         input_mint = Some(mint);
                         input_amount = amount;
@@ -256,6 +266,10 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                     continue;
                 }
                 if let Some((from, to, mint, amount)) = token_transferred_inner(&next_inner_ix, &account_keys, &meta) {
+                    let blacklist_atas: Vec<Pubkey> = blacklist_ata_indexes.iter().filter_map(|&i| next_inner_ix.accounts.get(i).map(|acc| account_keys[*acc as usize])).collect();
+                    if blacklist_atas.contains(&from) || blacklist_atas.contains(&to) {
+                        continue; // Skip blacklisted ATAs
+                    }
                     if from == input_ata && (to == pool_output_ata || pool_output_ata == Pubkey::default()) {
                         input_mint = Some(mint);
                         input_amount = amount;
