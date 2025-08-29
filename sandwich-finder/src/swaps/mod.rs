@@ -17,3 +17,4 @@ pub mod raydium_v4;
 pub mod raydium_v5;
 pub mod raydium_lp;
 pub mod whirlpool;
+pub mod zerofi;
