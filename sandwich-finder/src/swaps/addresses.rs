@@ -13,6 +13,7 @@ pub const METEORA_DBC_PUBKEY: Pubkey = Pubkey::from_str_const("dbcij3LWUppWqq96d
 pub const METEORA_DAMMV2_PUBKEY: Pubkey = Pubkey::from_str_const("cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG");
 pub const OPENBOOK_V2_PUBKEY: Pubkey = Pubkey::from_str_const("opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb");
 pub const ZEROFI_PUBKEY: Pubkey = Pubkey::from_str_const("ZERor4xhbUycZ6gb9ntrhqscUcZmAbQDjEAtCf4hbZY");
+pub const JUP_ORDER_ENGINE_PUBKEY: Pubkey = Pubkey::from_str_const("61DFfeTKM7trxYcPQCM78bJ794ddZprZpAwAnLiwTpYH");
 
 pub const TOKEN_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 pub const TOKEN_2022_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
