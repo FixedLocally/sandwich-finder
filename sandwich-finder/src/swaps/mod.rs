@@ -11,6 +11,7 @@ pub mod meteora;
 pub mod meteora_damm_v2;
 pub mod meteora_dbc;
 pub mod openbook_v2;
+pub mod pancake_swap;
 pub mod pumpamm;
 pub mod pumpfun;
 pub mod raydium_cl;
