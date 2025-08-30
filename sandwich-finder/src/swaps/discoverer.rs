@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta};
 
@@ -34,9 +36,10 @@ impl SwapFinder for Discoverer {
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, _meta: &TransactionStatusMeta) -> Vec<SwapV2> {
         // ignore known programs
         match ix.program_id {
-            RAYDIUM_V4_PUBKEY | RAYDIUM_V5_PUBKEY | RAYDIUM_LP_PUBKEY | RAYDIUM_CL_PUBKEY | PDF_PUBKEY | PDF2_PUBKEY | WHIRLPOOL_PUBKEY | DLMM_PUBKEY | METEORA_PUBKEY => vec![],
+            // RAYDIUM_V4_PUBKEY | RAYDIUM_V5_PUBKEY | RAYDIUM_LP_PUBKEY | RAYDIUM_CL_PUBKEY | PDF_PUBKEY | PDF2_PUBKEY | WHIRLPOOL_PUBKEY | DLMM_PUBKEY | METEORA_PUBKEY => vec![],
             _ => {
-                let mut swap_count = 0;
+                let mut transfer_count = 0;
+                let mut authorities = HashSet::new();
                 for inner_ix in &inner_ixs.instructions {
                     let program_id = account_keys[inner_ix.program_id_index as usize];
                     match program_id {
@@ -45,8 +48,19 @@ impl SwapFinder for Discoverer {
                                 continue;
                             }
                             match inner_ix.data[0] {
-                                3 | 12 => { // Transfer or TransferChecked
-                                    swap_count += 1;
+                                3 => { // Transfer
+                                    transfer_count += 1;
+                                    if inner_ix.accounts.len() >= 3 {
+                                        let authority = account_keys[inner_ix.accounts[2] as usize];
+                                        authorities.insert(authority);
+                                    }
+                                },
+                                12 => { // TransferChecked
+                                    transfer_count += 1;
+                                    if inner_ix.accounts.len() >= 4 {
+                                        let authority = account_keys[inner_ix.accounts[3] as usize];
+                                        authorities.insert(authority);
+                                    }
                                 },
                                 _ => {}
                             }
@@ -54,7 +68,7 @@ impl SwapFinder for Discoverer {
                         _ => {}
                     }
                 }
-                if swap_count >= 2 {
+                if transfer_count >= 2 && authorities.len() >= 2 {
                     return vec![
                         SwapV2::new(None, ix.program_id.to_string(), "".to_string(), "".to_string(), "".to_string(), 0, 0, "".to_string(), "".to_string(), 0, 0, 0, 0, None),
                     ];
