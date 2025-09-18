@@ -50,9 +50,9 @@ impl SwapFinder for RaydiumCLSwapFinder {
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
         [
             // swap
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_CL_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 41),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_CL_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 41),
             // swap_v2
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_CL_PUBKEY, &[0x2b, 0x04, 0xed, 0x0b, 0x1a, 0xc9, 0x1e, 0x62], 41),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_CL_PUBKEY, &[0x2b, 0x04, 0xed, 0x0b, 0x1a, 0xc9, 0x1e, 0x62], 0, 41),
         ].concat()
     }
 }

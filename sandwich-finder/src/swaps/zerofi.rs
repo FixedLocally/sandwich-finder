@@ -50,7 +50,7 @@ impl SwapFinder for ZeroFiSwapFinder {
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
         [
             // swap
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &ZEROFI_PUBKEY, &[0x06], 17),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &ZEROFI_PUBKEY, &[0x06], 0, 17),
         ].concat()
     }
 }

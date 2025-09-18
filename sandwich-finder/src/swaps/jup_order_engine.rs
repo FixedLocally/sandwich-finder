@@ -94,7 +94,7 @@ impl SwapFinder for JupOrderEngineSwapFinder {
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
         [
             // fill
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &JUP_ORDER_ENGINE_PUBKEY, &[0xa8, 0x60, 0xb7, 0xa3, 0x5c, 0x0a, 0x28, 0xa0], 32),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &JUP_ORDER_ENGINE_PUBKEY, &[0xa8, 0x60, 0xb7, 0xa3, 0x5c, 0x0a, 0x28, 0xa0], 0, 32),
         ].concat()
     }
 }

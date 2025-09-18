@@ -83,6 +83,6 @@ impl SwapFinder for OpenbookV2SwapFinder {
 
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
         // placeTakeOrder
-        Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &OPENBOOK_V2_PUBKEY, &[0x03, 0x2c, 0x47, 0x03, 0x1a, 0xc7, 0xcb, 0x55], 35)
+        Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &OPENBOOK_V2_PUBKEY, &[0x03, 0x2c, 0x47, 0x03, 0x1a, 0xc7, 0xcb, 0x55], 0, 35)
     }
 }

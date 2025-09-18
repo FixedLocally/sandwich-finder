@@ -78,9 +78,9 @@ impl SwapFinder for PumpAmmSwapFinder {
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
         [
             // buy
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &PDF2_PUBKEY, &[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea], 24),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &PDF2_PUBKEY, &[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea], 0, 24),
             // sell
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &PDF2_PUBKEY, &[0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad], 24),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &PDF2_PUBKEY, &[0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad], 0, 24),
         ].concat()
     }
 }

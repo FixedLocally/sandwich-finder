@@ -35,17 +35,17 @@ impl SwapFinder for DLMMSwapFinder {
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
         [
             // swap
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &DLMM_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 24),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &DLMM_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 24),
             // swap2
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &DLMM_PUBKEY, &[0x41, 0x4b, 0x3f, 0x4c, 0xeb, 0x5b, 0x5b, 0x88], 24),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &DLMM_PUBKEY, &[0x41, 0x4b, 0x3f, 0x4c, 0xeb, 0x5b, 0x5b, 0x88], 0, 24),
             // swap_exact_out
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &DLMM_PUBKEY, &[0xfa, 0x49, 0x65, 0x21, 0x26, 0xcf, 0x4b, 0xb8], 24),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &DLMM_PUBKEY, &[0xfa, 0x49, 0x65, 0x21, 0x26, 0xcf, 0x4b, 0xb8], 0, 24),
             // swap_exact_out2
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &DLMM_PUBKEY, &[0x2b, 0xd7, 0xf7, 0x84, 0x89, 0x3c, 0xf3, 0x51], 24),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &DLMM_PUBKEY, &[0x2b, 0xd7, 0xf7, 0x84, 0x89, 0x3c, 0xf3, 0x51], 0, 24),
             // swap_with_price_impact
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &DLMM_PUBKEY, &[0x38, 0xad, 0xe6, 0xd0, 0xad, 0xe4, 0x9c, 0xcd], 24),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &DLMM_PUBKEY, &[0x38, 0xad, 0xe6, 0xd0, 0xad, 0xe4, 0x9c, 0xcd], 0, 24),
             // swap_with_price_impact2
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &DLMM_PUBKEY, &[0x4a, 0x62, 0xc0, 0xd6, 0xb1, 0x33, 0x4b, 0x33], 24),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &DLMM_PUBKEY, &[0x4a, 0x62, 0xc0, 0xd6, 0xb1, 0x33, 0x4b, 0x33], 0, 24),
         ].concat()
     }
 }

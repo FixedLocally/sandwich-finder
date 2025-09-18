@@ -47,7 +47,7 @@ impl SwapFinder for FluxbeamSwapFinder {
 
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
         [
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &FLUXBEAM_PUBKEY, &[0x01], 17),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &FLUXBEAM_PUBKEY, &[0x01], 0, 17),
         ].concat()
     }
 }

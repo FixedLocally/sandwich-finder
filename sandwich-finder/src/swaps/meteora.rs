@@ -46,6 +46,6 @@ impl SwapFinder for MeteoraSwapFinder {
     }
 
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
-        Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &METEORA_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 17)
+        Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &METEORA_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 17)
     }
 }

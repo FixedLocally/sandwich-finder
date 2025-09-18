@@ -34,6 +34,6 @@ impl SwapFinder for RaydiumV4SwapFinder {
     }
 
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
-        Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_V4_PUBKEY, &[0x09], 17)
+        Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_V4_PUBKEY, &[0x09], 0, 17)
     }
 }

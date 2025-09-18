@@ -84,13 +84,13 @@ impl SwapFinder for RaydiumLPSwapFinder {
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<SwapV2> {
         [
             // buy_exact_in
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_LP_PUBKEY, &[0xfa, 0xea, 0x0d, 0x7b, 0xd5, 0x9c, 0x13, 0xec], 32),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_LP_PUBKEY, &[0xfa, 0xea, 0x0d, 0x7b, 0xd5, 0x9c, 0x13, 0xec], 0, 32),
             // sell_exact_in
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_LP_PUBKEY, &[0x95, 0x27, 0xde, 0x9b, 0xd3, 0x7c, 0x98, 0x1a], 32),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_LP_PUBKEY, &[0x95, 0x27, 0xde, 0x9b, 0xd3, 0x7c, 0x98, 0x1a], 0, 32),
             // buy_exact_out
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_LP_PUBKEY, &[0x18, 0xd3, 0x74, 0x28, 0x69, 0x03, 0x99, 0x38], 32),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_LP_PUBKEY, &[0x18, 0xd3, 0x74, 0x28, 0x69, 0x03, 0x99, 0x38], 0, 32),
             // sell_exact_out
-            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_LP_PUBKEY, &[0x5f, 0xc8, 0x47, 0x22, 0x8, 0x9, 0xb, 0xa6], 32),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_LP_PUBKEY, &[0x5f, 0xc8, 0x47, 0x22, 0x08, 0x09, 0x0b, 0xa6], 0, 32),
         ].concat()
     }
 }

@@ -155,6 +155,7 @@ pub trait SwapFinderExt: private::Sealed {
         meta: &TransactionStatusMeta,
         program_id: &Pubkey,
         discriminant: &[u8],
+        discriminant_offset: usize,
         data_length: usize,
     ) -> Vec<SwapV2>;
 
@@ -170,6 +171,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
         meta: &TransactionStatusMeta,
         program_id: &Pubkey,
         discriminant: &[u8],
+        discriminant_offset: usize,
         data_length: usize,
     ) -> Vec<SwapV2> {
         debug_println!("looking for swaps in ix #{} with program id {} and discriminant {:?}", inner_ixs.index, program_id, discriminant);
@@ -181,12 +183,12 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
         }
         if ix.program_id == *program_id {
             // data size check
-            if data_length < discriminant.len() || ix.data.len() < data_length {
+            if data_length < discriminant_offset + discriminant.len() || ix.data.len() < data_length {
                 debug_println!("too little data");
                 return vec![];
             }
             // discriminant check
-            if ix.data[0..discriminant.len()] != discriminant[..] {
+            if ix.data[discriminant_offset..discriminant_offset + discriminant.len()] != discriminant[..] {
                 debug_println!("wrong discriminant");
                 return vec![];
             }
@@ -197,8 +199,10 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let (input_ata, output_ata) = Self::user_ata_ix(ix);
             let (pool_input_ata, pool_output_ata) = Self::pool_ata_ix(ix);
             let blacklist_atas: Vec<Pubkey> = blacklist_ata_indexes.iter().filter_map(|&i| ix.accounts.get(i).map(|acc| acc.pubkey)).collect();
+            println!("{} -> {} {} -> {}", input_ata, pool_output_ata, pool_input_ata, output_ata);
             inner_ixs.instructions.iter().skip(ixs_to_skip).for_each(|inner_ix| {
                 if let Some((from, to, mint, amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
+                    println!("token transferred: {} -> {} (mint: {}, amount: {})", from, to, mint, amount);
                     if blacklist_atas.contains(&from) || blacklist_atas.contains(&to) {
                         return; // Skip blacklisted ATAs
                     }
@@ -248,7 +252,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                 return;
             }
             // data size & discriminant check
-            if inner_ix.data.len() < data_length || inner_ix.data[0..discriminant.len()] != discriminant[..] {
+            if inner_ix.data.len() < data_length || inner_ix.data[discriminant_offset..discriminant_offset + discriminant.len()] != discriminant[..] {
                 debug_println!("inner: too few data/wrong discriminant {:?}/{:?}", inner_ix.data, discriminant);
                 return;
             }
