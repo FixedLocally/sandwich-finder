@@ -288,8 +288,8 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                         Some(ix.program_id.to_string()),
                         program_id.to_string(),
                         Self::amm_inner_ix(inner_ix, account_keys).to_string(),
-                        input_mint.clone().unwrap_or_default(),
-                        output_mint.clone().unwrap_or_default(),
+                        input_mint.clone().unwrap(),
+                        output_mint.clone().unwrap(),
                         input_amount,
                         output_amount,
                         input_ata.to_string(),
@@ -304,6 +304,22 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                     return;
                 }
             }
+            swaps.push(SwapV2::new(
+                Some(ix.program_id.to_string()),
+                program_id.to_string(),
+                Self::amm_inner_ix(inner_ix, account_keys).to_string(),
+                input_mint.clone().unwrap_or_default(),
+                output_mint.clone().unwrap_or_default(),
+                input_amount,
+                output_amount,
+                input_ata.to_string(),
+                output_ata.to_string(),
+                0,
+                0,
+                0,
+                0,
+                Some(i as u32),
+            ));
         });
         swaps
     }
