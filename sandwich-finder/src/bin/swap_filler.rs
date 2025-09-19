@@ -2,7 +2,7 @@ use std::{collections::HashMap, env};
 
 use dashmap::DashMap;
 use futures::{SinkExt as _, StreamExt as _};
-use sandwich_finder::{swaps::{discoverer::Discoverer, dlmm::DLMMSwapFinder, finder::SwapFinderExt as _, fluxbeam::FluxbeamSwapFinder, jup_order_engine::JupOrderEngineSwapFinder, meteora::MeteoraSwapFinder, meteora_damm_v2::MeteoraDammV2Finder, meteora_dbc::MeteoraDBCSwapFinder, openbook_v2::OpenbookV2SwapFinder, pancake_swap::PancakeSwapSwapFinder, pumpamm::PumpAmmSwapFinder, pumpfun::PumpFunSwapFinder, raydium_cl::RaydiumCLSwapFinder, raydium_lp::RaydiumLPSwapFinder, raydium_v4::RaydiumV4SwapFinder, raydium_v5::RaydiumV5SwapFinder, whirlpool::{WhirlpoolSwapFinder, WhirlpoolTwoHopSwapFinder1, WhirlpoolTwoHopSwapFinder2, WhirlpoolTwoHopSwapV2Finder1, WhirlpoolTwoHopSwapV2Finder2}, zerofi::ZeroFiSwapFinder}, utils::pubkey_from_slice};
+use sandwich_finder::{swaps::{discoverer::Discoverer, dlmm::DLMMSwapFinder, finder::SwapFinderExt as _, fluxbeam::FluxbeamSwapFinder, humidifi::HumidiFiSwapFinder, jup_order_engine::JupOrderEngineSwapFinder, meteora::MeteoraSwapFinder, meteora_damm_v2::MeteoraDammV2Finder, meteora_dbc::MeteoraDBCSwapFinder, openbook_v2::OpenbookV2SwapFinder, pancake_swap::PancakeSwapSwapFinder, pumpamm::PumpAmmSwapFinder, pumpfun::PumpFunSwapFinder, raydium_cl::RaydiumCLSwapFinder, raydium_lp::RaydiumLPSwapFinder, raydium_v4::RaydiumV4SwapFinder, raydium_v5::RaydiumV5SwapFinder, whirlpool::{WhirlpoolSwapFinder, WhirlpoolTwoHopSwapFinder1, WhirlpoolTwoHopSwapFinder2, WhirlpoolTwoHopSwapV2Finder1, WhirlpoolTwoHopSwapV2Finder2}, zerofi::ZeroFiSwapFinder}, utils::pubkey_from_slice};
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{account::ReadableAccount as _, address_lookup_table::{state::AddressLookupTable, AddressLookupTableAccount}, bs58, commitment_config::CommitmentConfig, instruction::{AccountMeta, Instruction}, pubkey::Pubkey};
 use tokio::join;
@@ -197,6 +197,7 @@ async fn swap_finder_loop() {
                         JupOrderEngineSwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
                         PancakeSwapSwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
                         FluxbeamSwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
+                        HumidiFiSwapFinder::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2),
                     ].concat();
                     if swaps.is_empty() {
                         let swaps = Discoverer::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2);
