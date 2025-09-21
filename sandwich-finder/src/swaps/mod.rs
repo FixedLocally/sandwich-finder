@@ -5,11 +5,11 @@ mod utils;
 pub mod finder;
 
 pub mod discoverer;
-pub mod dlmm;
 pub mod fluxbeam;
 pub mod humidifi;
 pub mod jup_order_engine;
 pub mod meteora;
+pub mod meteora_dlmm;
 pub mod meteora_damm_v2;
 pub mod meteora_dbc;
 pub mod openbook_v2;
