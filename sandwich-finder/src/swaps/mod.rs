@@ -21,5 +21,6 @@ pub mod raydium_v4;
 pub mod raydium_v5;
 pub mod raydium_lp;
 pub mod saros_dlmm;
+pub mod solfi;
 pub mod whirlpool;
 pub mod zerofi;
