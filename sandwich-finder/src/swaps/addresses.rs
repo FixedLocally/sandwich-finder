@@ -16,6 +16,8 @@ pub const ZEROFI_PUBKEY: Pubkey = Pubkey::from_str_const("ZERor4xhbUycZ6gb9ntrhq
 pub const JUP_ORDER_ENGINE_PUBKEY: Pubkey = Pubkey::from_str_const("61DFfeTKM7trxYcPQCM78bJ794ddZprZpAwAnLiwTpYH");
 pub const PANCAKE_SWAP_PUBKEY: Pubkey = Pubkey::from_str_const("HpNfyc2Saw7RKkQd8nEL4khUcuPhQ7WwY1B2qjx8jxFq");
 pub const FLUXBEAM_PUBKEY: Pubkey = Pubkey::from_str_const("FLUXubRmkEi2q6K3Y9kBPg9248ggaZVsoSFhtJHSrm1X");
+pub const HUMIDIFI_PUBKEY: Pubkey = Pubkey::from_str_const("9H6tua7jkLhdm3w8BvgpTn5LZNU7g4ZynDmCiNN3q6Rp");
+pub const SAROS_DLMM_PUBKEY: Pubkey = Pubkey::from_str_const("1qbkdrr3z4ryLA7pZykqxvxWPoeifcVKo6ZG9CfkvVE");
 
 pub const TOKEN_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 pub const TOKEN_2022_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");

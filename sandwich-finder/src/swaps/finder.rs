@@ -199,10 +199,10 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let (input_ata, output_ata) = Self::user_ata_ix(ix);
             let (pool_input_ata, pool_output_ata) = Self::pool_ata_ix(ix);
             let blacklist_atas: Vec<Pubkey> = blacklist_ata_indexes.iter().filter_map(|&i| ix.accounts.get(i).map(|acc| acc.pubkey)).collect();
-            println!("{} -> {} {} -> {}", input_ata, pool_output_ata, pool_input_ata, output_ata);
+            debug_println!("{} -> {} {} -> {}", input_ata, pool_output_ata, pool_input_ata, output_ata);
             inner_ixs.instructions.iter().skip(ixs_to_skip).for_each(|inner_ix| {
                 if let Some((from, to, mint, amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
-                    println!("token transferred: {} -> {} (mint: {}, amount: {})", from, to, mint, amount);
+                    debug_println!("token transferred: {} -> {} (mint: {}, amount: {})", from, to, mint, amount);
                     if blacklist_atas.contains(&from) || blacklist_atas.contains(&to) {
                         return; // Skip blacklisted ATAs
                     }
