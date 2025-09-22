@@ -6,6 +6,7 @@ pub mod finder;
 
 pub mod discoverer;
 pub mod fluxbeam;
+pub mod goonfi;
 pub mod humidifi;
 pub mod jup_order_engine;
 pub mod meteora;
