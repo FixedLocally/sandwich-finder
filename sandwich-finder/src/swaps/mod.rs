@@ -5,6 +5,8 @@ mod utils;
 pub mod finder;
 
 pub mod discoverer;
+
+pub mod apesu;
 pub mod fluxbeam;
 pub mod goonfi;
 pub mod humidifi;
