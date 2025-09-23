@@ -23,6 +23,7 @@ pub const GOONFI_PUBKEY: Pubkey = Pubkey::from_str_const("goonERTdGsjnkZqWuVjs73
 pub const SUGAR_PUBKEY: Pubkey = Pubkey::from_str_const("deus4Bvftd5QKcEkE5muQaWGWDoma8GrySvPFrBPjhS");
 pub const TESS_V_PUBKEY: Pubkey = Pubkey::from_str_const("TessVdML9pBGgG9yGks7o4HewRaXVAMuoVj4x83GLQH");
 pub const SV2E_PUBKEY: Pubkey = Pubkey::from_str_const("SV2EYYJyRz2YhfXwXnhNAevDEui5Q6yrfyo13WtupPF");
+pub const LIFINITY_V2_PUBKEY: Pubkey = Pubkey::from_str_const("2wT8Yq49kHgDzXuPxZSaeLaH1qbmGXtEyPy64bL7aD3c");
 
 pub const TOKEN_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 pub const TOKEN_2022_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
