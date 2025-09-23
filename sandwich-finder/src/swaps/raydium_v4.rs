@@ -37,6 +37,7 @@ impl SwapFinder for RaydiumV4SwapFinder {
         [
             Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_V4_PUBKEY, &[0x09], 0, 17),
             Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_V4_PUBKEY, &[0x0b], 0, 17),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &RAYDIUM_V4_PUBKEY, &[0x10], 0, 17),
         ].concat()
     }
 }
