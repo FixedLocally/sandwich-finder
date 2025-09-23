@@ -24,5 +24,6 @@ pub mod raydium_lp;
 pub mod saros_dlmm;
 pub mod solfi;
 pub mod sugar;
+pub mod tessv;
 pub mod whirlpool;
 pub mod zerofi;

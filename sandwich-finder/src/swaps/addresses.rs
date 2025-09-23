@@ -21,6 +21,7 @@ pub const SAROS_DLMM_PUBKEY: Pubkey = Pubkey::from_str_const("1qbkdrr3z4ryLA7pZy
 pub const SOLFI_PUBKEY: Pubkey = Pubkey::from_str_const("SoLFiHG9TfgtdUXUjWAxi3LtvYuFyDLVhBWxdMZxyCe");
 pub const GOONFI_PUBKEY: Pubkey = Pubkey::from_str_const("goonERTdGsjnkZqWuVjs73BZ3Pb9qoCUdBUL17BnS5j");
 pub const SUGAR_PUBKEY: Pubkey = Pubkey::from_str_const("deus4Bvftd5QKcEkE5muQaWGWDoma8GrySvPFrBPjhS");
+pub const TESS_V_PUBKEY: Pubkey = Pubkey::from_str_const("TessVdML9pBGgG9yGks7o4HewRaXVAMuoVj4x83GLQH");
 
 pub const TOKEN_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 pub const TOKEN_2022_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
