@@ -140,7 +140,7 @@ impl SwapFinder for PumpFunSwapFinder {
                     if account_keys[next_inner_ix.program_id_index as usize] != PDF_PUBKEY {
                         continue; // Not a Pump.fun instruction
                     }
-                    if next_inner_ix.data.len() != 266 || next_inner_ix.data.len() < 16 || next_inner_ix.data[0..16] != LOG_DISCRIMINANT[..] {
+                    if next_inner_ix.data.len() != 266 || next_inner_ix.data[0..16] != LOG_DISCRIMINANT[..] {
                         continue; // Not an event
                     }
                     swaps.push(Self::swap_from_pdf_trade_event(
