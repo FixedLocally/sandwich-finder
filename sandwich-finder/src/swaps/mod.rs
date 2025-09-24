@@ -16,6 +16,7 @@ pub mod meteora_dlmm;
 pub mod meteora_damm_v2;
 pub mod meteora_dbc;
 pub mod lifinity_v2;
+pub mod onedex;
 pub mod openbook_v2;
 pub mod pancake_swap;
 pub mod pumpamm;

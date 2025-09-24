@@ -13,9 +13,6 @@ pub struct ApesuSwapFinder {}
 /// name is identified through crank's source of funds
 impl ApesuSwapFinder {
     fn is_a_to_b(data: &[u8]) -> bool {
-        if data[24] != 1 && data[24] != 3 {
-            println!("flag {}", data[24]);
-        }
         data[24] == 1
     }
 }
