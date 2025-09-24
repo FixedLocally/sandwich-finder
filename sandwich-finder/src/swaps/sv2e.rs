@@ -7,7 +7,7 @@ impl Sealed for Sv2eSwapFinder {}
 
 pub struct Sv2eSwapFinder {}
 
-/// SolFi a single swap instruction
+/// SV2E... a single swap instruction
 /// [17] is a_to_b
 /// user a/b: 6/7, pool a/b: 4/5
 impl Sv2eSwapFinder {

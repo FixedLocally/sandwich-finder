@@ -7,6 +7,7 @@ pub mod finder;
 pub mod discoverer;
 
 pub mod apesu;
+pub mod aqua;
 pub mod fluxbeam;
 pub mod goonfi;
 pub mod humidifi;

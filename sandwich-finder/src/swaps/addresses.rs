@@ -26,6 +26,7 @@ pub const SV2E_PUBKEY: Pubkey = Pubkey::from_str_const("SV2EYYJyRz2YhfXwXnhNAevD
 pub const LIFINITY_V2_PUBKEY: Pubkey = Pubkey::from_str_const("2wT8Yq49kHgDzXuPxZSaeLaH1qbmGXtEyPy64bL7aD3c");
 pub const APESU_PUBKEY: Pubkey = Pubkey::from_str_const("5FyWAoG8V6hxgY6XM9hZStNxSW4D6mkv8HmYrxuPPDhv");
 pub const ONEDEX_PUBKEY: Pubkey = Pubkey::from_str_const("DEXYosS6oEGvk8uCDayvwEZz4qEyDJRf9nFgYCaqPMTm");
+pub const AQUA_PUBKEY: Pubkey = Pubkey::from_str_const("AQU1FRd7papthgdrwPTTq5JacJh8YtwEXaBfKU3bTz45");
 
 pub const TOKEN_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 pub const TOKEN_2022_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
