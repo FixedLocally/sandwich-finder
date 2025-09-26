@@ -28,6 +28,7 @@ pub mod raydium_v5;
 pub mod raydium_lp;
 pub mod saros_dlmm;
 pub mod solfi;
+pub mod stabble_weighted;
 pub mod sugar;
 pub mod sv2e;
 pub mod tessv;
