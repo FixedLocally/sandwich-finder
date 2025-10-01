@@ -37,6 +37,9 @@ pub struct SwapV2 {
     // In/out token accounts
     input_ata: String,
     output_ata: String,
+    // In/out inner ix indexes
+    input_inner_ix_index: Option<u32>,
+    output_inner_ix_index: Option<u32>,
     // These fields are meant to be replaced when inserting to the db
     // Tx signature reference
     sig_id: u64,
@@ -60,6 +63,8 @@ impl SwapV2 {
         output_amount: u64,
         input_ata: String,
         output_ata: String,
+        input_inner_ix_index: Option<u32>,
+        output_inner_ix_index: Option<u32>,
         sig_id: u64,
         slot: u64,
         inclusion_order: u32,
@@ -76,6 +81,8 @@ impl SwapV2 {
             output_amount,
             input_ata,
             output_ata,
+            input_inner_ix_index,
+            output_inner_ix_index,
             sig_id,
             slot,
             inclusion_order,
@@ -196,11 +203,13 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let mut output_amount = 0;
             let mut input_mint = None;
             let mut output_mint = None;
+            let mut input_index = None;
+            let mut output_index = None;
             let (input_ata, output_ata) = Self::user_ata_ix(ix);
             let (pool_input_ata, pool_output_ata) = Self::pool_ata_ix(ix);
             let blacklist_atas: Vec<Pubkey> = blacklist_ata_indexes.iter().filter_map(|&i| ix.accounts.get(i).map(|acc| acc.pubkey)).collect();
             debug_println!("{} -> {} {} -> {}", input_ata, pool_output_ata, pool_input_ata, output_ata);
-            inner_ixs.instructions.iter().skip(ixs_to_skip).for_each(|inner_ix| {
+            inner_ixs.instructions.iter().skip(ixs_to_skip).enumerate().for_each(|(i, inner_ix)| {
                 if let Some((from, to, mint, amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
                     debug_println!("token transferred: {} -> {} (mint: {}, amount: {})", from, to, mint, amount);
                     if blacklist_atas.contains(&from) || blacklist_atas.contains(&to) {
@@ -209,9 +218,11 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                     if from == input_ata && (to == pool_output_ata || pool_output_ata == Pubkey::default()) {
                         input_mint = Some(mint);
                         input_amount = amount;
+                        input_index = Some(i as u32 + ixs_to_skip as u32);
                     } else if to == output_ata && (from == pool_input_ata || pool_input_ata == Pubkey::default()) {
                         output_mint = Some(mint);
                         output_amount = amount;
+                        output_index = Some(i as u32 + ixs_to_skip as u32);
                     }
                 }
             });
@@ -227,6 +238,8 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                     output_amount,
                     input_ata.to_string(),
                     output_ata.to_string(),
+                    input_index,
+                    output_index,
                     0,
                     0,
                     0,
@@ -261,6 +274,8 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let mut output_amount = 0;
             let mut input_mint = None;
             let mut output_mint = None;
+            let mut input_index = None;
+            let mut output_index = None;
             let (input_ata, output_ata) = Self::user_ata_inner_ix(inner_ix, account_keys);
             let (pool_input_ata, pool_output_ata) = Self::pool_ata_inner_ix(inner_ix, account_keys);
             debug_println!("{} -> {} (pool: {} -> {})", input_ata, output_ata, pool_input_ata, pool_output_ata);
@@ -277,9 +292,11 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                     if from == input_ata && (to == pool_output_ata || pool_output_ata == Pubkey::default()) {
                         input_mint = Some(mint);
                         input_amount = amount;
+                        input_index = Some(j as u32);
                     } else if to == output_ata && (from == pool_input_ata || pool_input_ata == Pubkey::default()) {
                         output_mint = Some(mint);
                         output_amount = amount;
+                        output_index = Some(j as u32);
                     }
                 }
                 if input_mint.is_some() && output_mint.is_some() {
@@ -294,6 +311,8 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                         output_amount,
                         input_ata.to_string(),
                         output_ata.to_string(),
+                        input_index,
+                        output_index,
                         0,
                         0,
                         0,
@@ -304,6 +323,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                     return;
                 }
             }
+            // Still push in case we can't find one of the legs - rounded to zero or bug somewhere?
             swaps.push(SwapV2::new(
                 Some(ix.program_id.to_string()),
                 program_id.to_string(),
@@ -314,6 +334,8 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                 output_amount,
                 input_ata.to_string(),
                 output_ata.to_string(),
+                input_index,
+                output_index,
                 0,
                 0,
                 0,

@@ -70,7 +70,7 @@ impl SwapFinder for Discoverer {
                 }
                 if transfer_count >= 2 && authorities.len() >= 2 && mints.len() >= 2 {
                     return vec![
-                        SwapV2::new(None, ix.program_id.to_string(), "".to_string(), "".to_string(), "".to_string(), 0, 0, "".to_string(), "".to_string(), 0, 0, 0, 0, None),
+                        SwapV2::new(None, ix.program_id.to_string(), "".to_string(), "".to_string(), "".to_string(), 0, 0, "".to_string(), "".to_string(), None, None, 0, 0, 0, 0, None),
                     ];
                 }
                 vec![]

@@ -59,6 +59,9 @@ impl PumpFunSwapFinder {
             output_amount,
             input_ata.to_string(),
             output_ata.to_string(),
+            // todo: should try to locate the actual ix
+            None,
+            None,
             0,
             0,
             0,
