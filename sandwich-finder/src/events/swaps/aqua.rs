@@ -1,7 +1,7 @@
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta};
 
-use crate::events::swaps::{addresses::AQUA_PUBKEY, finder::{SwapFinder, SwapFinderExt, SwapV2}, private::Sealed};
+use crate::events::{swap::{SwapFinder, SwapV2}, swaps::{addresses::AQUA_PUBKEY, private::Sealed, swap_finder_ext::SwapFinderExt}};
 
 impl Sealed for AquaSwapFinder {}
 

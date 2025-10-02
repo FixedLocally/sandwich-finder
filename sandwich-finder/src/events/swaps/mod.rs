@@ -1,8 +1,8 @@
 mod addresses;
 mod private;
-mod utils;
 
-pub mod finder;
+pub mod swap_finder_ext;
+pub mod utils;
 
 pub mod discoverer;
 

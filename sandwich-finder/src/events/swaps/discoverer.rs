@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta};
 
-use crate::events::swaps::{finder::{SwapFinder, SwapV2}, private::Sealed, utils::token_transferred_inner};
+use crate::events::{swap::{SwapFinder, SwapV2}, swaps::{private::Sealed, utils::token_transferred_inner}};
 
 impl Sealed for Discoverer {}
 
