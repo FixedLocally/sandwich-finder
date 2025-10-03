@@ -1,7 +1,7 @@
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta};
 
-use crate::events::{swap::{SwapFinder, SwapV2}, swaps::{addresses::PANCAKE_SWAP_PUBKEY, private::Sealed, swap_finder_ext::SwapFinderExt}};
+use crate::events::{addresses::PANCAKE_SWAP_PUBKEY, swap::{SwapFinder, SwapV2}, swaps::{private::Sealed, swap_finder_ext::SwapFinderExt}};
 
 impl Sealed for PancakeSwapSwapFinder {}
 

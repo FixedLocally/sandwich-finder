@@ -1,7 +1,7 @@
 use solana_sdk::pubkey::Pubkey;
 use yellowstone_grpc_proto::prelude::{InnerInstruction, TransactionStatusMeta};
 
-use crate::events::swaps::addresses::{SYSTEM_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, WSOL_MINT};
+use crate::events::addresses::{SYSTEM_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, WSOL_MINT};
 
 pub fn mint_of(pubkey: &Pubkey, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Option<String> {
     let target_index = account_keys.iter().position(|key| key == pubkey);

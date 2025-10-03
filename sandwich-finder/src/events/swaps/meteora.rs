@@ -1,7 +1,7 @@
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta};
 
-use crate::events::{swap::{SwapFinder, SwapV2}, swaps::{addresses::METEORA_PUBKEY, private::Sealed, swap_finder_ext::SwapFinderExt}};
+use crate::events::{addresses::METEORA_PUBKEY, swap::{SwapFinder, SwapV2}, swaps::{private::Sealed, swap_finder_ext::SwapFinderExt}};
 
 impl Sealed for MeteoraSwapFinder {}
 

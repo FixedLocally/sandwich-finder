@@ -1,4 +1,3 @@
-mod addresses;
 mod private;
 
 pub mod swap_finder_ext;

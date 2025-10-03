@@ -391,6 +391,76 @@ pub async fn decompile(raw_tx: &SubscribeUpdateTransactionInfo, rpc_client: &Rpc
     None    
 }
 
+pub async fn decompile_tx<'a>(raw_tx: &'a SubscribeUpdateTransactionInfo, rpc_client: &RpcClient, lut_cache: &DashMap<Pubkey, AddressLookupTableAccount>) -> Option<(&'a SubscribeUpdateTransactionInfo, Vec<Instruction>, Vec<Pubkey>)> {
+    if let Some(tx) = &raw_tx.transaction {
+        if let Some(meta) = &raw_tx.meta {
+            if meta.err.is_some() {
+                // skip errored transactions
+                return None;
+            }
+            if let Some(msg) = &tx.message {
+                if let Some(header) = &msg.header {
+                    let lut_keys = msg.address_table_lookups.iter().map(|lut| {
+                        pubkey_from_slice(&lut.account_key[0..32])
+                    }).collect::<Vec<Pubkey>>();
+
+                    // get the uncached lut accounts, deserialize them and cache them
+                    let uncached_luts = lut_keys.iter().filter(|lut_key| !lut_cache.contains_key(lut_key)).map(|x| *x).collect::<Vec<Pubkey>>();
+                    if !uncached_luts.is_empty() {
+                        let accounts = rpc_client.get_multiple_accounts(uncached_luts.as_slice()).await.expect("unable to get accounts");
+                        accounts.iter().enumerate().for_each(|(i, account)| {
+                            if let Some(account) = account {
+                                let lut = AddressLookupTable::deserialize(&account.data()).expect("unable to deserialize account");
+                                lut_cache.insert(uncached_luts[i], AddressLookupTableAccount {
+                                    key: uncached_luts[i],
+                                    addresses: lut.addresses.to_vec(),
+                                });
+                            }
+                        });
+                    }
+
+                    // resolve lookups
+                    let (writable, readonly) = resolve_lut_lookups(&lut_cache, &msg);
+                    let num_signed_accts = header.num_required_signatures as usize;
+                    let num_static_keys = msg.account_keys.len();
+                    let num_writable_lut_keys = writable.len();
+
+                    let mut account_keys: Vec<Pubkey> = msg.account_keys.iter().map(|key| pubkey_from_slice(key)).collect();
+                    account_keys.extend(writable);
+                    account_keys.extend(readonly);
+
+                    // repackage into legacy ixs
+                    let ixs = msg.instructions.iter().map(|ix| {
+                        let program_id = account_keys[ix.program_id_index as usize];
+                        let accounts = ix.accounts.iter().enumerate().map(|(i, index)| {
+                            let is_signer = i < num_signed_accts;
+                            let is_writable = if i >= num_static_keys {
+                                i - num_static_keys < num_writable_lut_keys
+                            } else if i >= num_signed_accts {
+                                i - num_signed_accts < num_static_keys - num_signed_accts - header.num_readonly_unsigned_accounts as usize
+                            } else {
+                                i < num_signed_accts - header.num_readonly_signed_accounts as usize
+                            };
+                            AccountMeta {
+                                pubkey: account_keys[*index as usize],
+                                is_signer,
+                                is_writable,
+                            }
+                        }).collect::<Vec<AccountMeta>>();
+                        Instruction {
+                            program_id,
+                            accounts,
+                            data: ix.data.clone(),
+                        }
+                    }).collect::<Vec<Instruction>>();
+                    return Some((raw_tx, ixs, account_keys));
+                }
+            }
+        }
+    }
+    None
+}
+
 pub fn find_sandwiches(in_trades: &Vec<&Swap>, out_trades: &Vec<&Swap>, slot: u64, ts: i64) -> Vec<Sandwich> {
     // for each in_trade, we look for an out_trade that satisfies the sandwich criteria
     // since we've already went this far, we just need to pass checks 1, 3, 6
