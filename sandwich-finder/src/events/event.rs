@@ -10,13 +10,14 @@ use tokio::sync::mpsc;
 use yellowstone_grpc_client::GeyserGrpcBuilder;
 use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest, SubscribeRequestFilterAccounts, SubscribeRequestFilterBlocks, SubscribeRequestPing}, tonic::transport::Endpoint};
 
-use crate::{events::{swap::SwapV2, swaps::{apesu::ApesuSwapFinder, aqua::AquaSwapFinder, discoverer::Discoverer, fluxbeam::FluxbeamSwapFinder, goonfi::GoonFiSwapFinder, humidifi::HumidiFiSwapFinder, jup_order_engine::JupOrderEngineSwapFinder, lifinity_v2::LifinityV2SwapFinder, meteora::MeteoraSwapFinder, meteora_damm_v2::MeteoraDammV2Finder, meteora_dbc::MeteoraDBCSwapFinder, meteora_dlmm::MeteoraDLMMSwapFinder, onedex::OneDexSwapFinder, openbook_v2::OpenbookV2SwapFinder, pancake_swap::PancakeSwapSwapFinder, pumpamm::PumpAmmSwapFinder, pumpfun::PumpFunSwapFinder, raydium_cl::RaydiumCLSwapFinder, raydium_lp::RaydiumLPSwapFinder, raydium_v4::RaydiumV4SwapFinder, raydium_v5::RaydiumV5SwapFinder, saros_dlmm::SarosDLMMSwapFinder, solfi::SolFiSwapFinder, stabble_weighted::StabbleWeightedSwapFinder, sugar::SugarSwapFinder, sv2e::Sv2eSwapFinder, swap_finder_ext::SwapFinderExt as _, tessv::TessVSwapFinder, whirlpool::{WhirlpoolSwapFinder, WhirlpoolTwoHopSwapFinder1, WhirlpoolTwoHopSwapFinder2, WhirlpoolTwoHopSwapV2Finder1, WhirlpoolTwoHopSwapV2Finder2}, zerofi::ZeroFiSwapFinder}, transfer::TransferV2, transfers::{system::SystemProgramTransferfinder, token::TokenProgramTransferFinder, transfer_finder_ext::TransferFinderExt as _}}, utils::{decompile_tx, pubkey_from_slice}};
+use crate::{events::{swap::SwapV2, swaps::{apesu::ApesuSwapFinder, aqua::AquaSwapFinder, discoverer::Discoverer, fluxbeam::FluxbeamSwapFinder, goonfi::GoonFiSwapFinder, humidifi::HumidiFiSwapFinder, jup_order_engine::JupOrderEngineSwapFinder, lifinity_v2::LifinityV2SwapFinder, meteora::MeteoraSwapFinder, meteora_damm_v2::MeteoraDammV2Finder, meteora_dbc::MeteoraDBCSwapFinder, meteora_dlmm::MeteoraDLMMSwapFinder, onedex::OneDexSwapFinder, openbook_v2::OpenbookV2SwapFinder, pancake_swap::PancakeSwapSwapFinder, pumpamm::PumpAmmSwapFinder, pumpfun::PumpFunSwapFinder, raydium_cl::RaydiumCLSwapFinder, raydium_lp::RaydiumLPSwapFinder, raydium_v4::RaydiumV4SwapFinder, raydium_v5::RaydiumV5SwapFinder, saros_dlmm::SarosDLMMSwapFinder, solfi::SolFiSwapFinder, stabble_weighted::StabbleWeightedSwapFinder, sugar::SugarSwapFinder, sv2e::Sv2eSwapFinder, swap_finder_ext::SwapFinderExt as _, tessv::TessVSwapFinder, whirlpool::{WhirlpoolSwapFinder, WhirlpoolTwoHopSwapFinder1, WhirlpoolTwoHopSwapFinder2, WhirlpoolTwoHopSwapV2Finder1, WhirlpoolTwoHopSwapV2Finder2}, zerofi::ZeroFiSwapFinder}, transaction::TransactionV2, transfer::TransferV2, transfers::{system::SystemProgramTransferfinder, token::TokenProgramTransferFinder, transfer_finder_ext::TransferFinderExt as _}}, utils::{decompile_tx, pubkey_from_slice}};
 
 
 #[derive(Clone, Debug, Serialize)]
 pub enum Event {
     Swap(SwapV2),
     Transfer(TransferV2),
+    Transaction(TransactionV2),
 }
 
 pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receiver<Arc<Vec<Event>>> {
@@ -143,6 +144,25 @@ pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receive
                         // println!("found {} swaps in slot {} tx {}", swaps.len(), slot, bs58::encode(&tx.0.signature).into_string());
                         // println!("found {} transfers in slot {} tx {}", transfers.len(), slot, bs58::encode(&tx.0.signature).into_string());
                         // println!("{:?}", swaps);
+                        if tx_events.len() > 0 {
+                            if let Some(meta) = &tx.0.meta {
+                                tx_events.push(Event::Transaction(TransactionV2::new(
+                                    slot,
+                                    tx.0.index as u32,
+                                    bs58::encode(&tx.0.signature).into_string(),
+                                    meta.fee,
+                                    meta.compute_units_consumed.unwrap_or(0),
+                                )));
+                            } else {
+                                tx_events.push(Event::Transaction(TransactionV2::new(
+                                    slot,
+                                    tx.0.index as u32,
+                                    bs58::encode(&tx.0.signature).into_string(),
+                                    0,
+                                    0,
+                                )));
+                            }
+                        }
                         events.extend(tx_events);
                         println!("scheduled {} swaps and {} transfers in slot {} tx {}", swap_len, transfer_len, slot, bs58::encode(&tx.0.signature).into_string());
                     });
