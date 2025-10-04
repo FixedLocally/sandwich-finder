@@ -97,7 +97,6 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                     0,
                     0,
                     0,
-                    0,
                     None,
                 )
             ];
@@ -170,7 +169,6 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                         0,
                         0,
                         0,
-                        0,
                         Some(i as u32),
                     ));
                     next_logical_ix = j + 1;
@@ -190,7 +188,6 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                 output_ata.to_string(),
                 input_index,
                 output_index,
-                0,
                 0,
                 0,
                 0,
@@ -219,7 +216,6 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                             swap.output_ata().clone(),
                             *swap.input_inner_ix_index(),
                             *swap.output_inner_ix_index(),
-                            *swap.sig_id(),
                             slot,
                             raw_tx.index as u32,
                             i as u32,
