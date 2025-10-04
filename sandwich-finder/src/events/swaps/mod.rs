@@ -11,6 +11,7 @@ pub mod fluxbeam;
 pub mod goonfi;
 pub mod humidifi;
 pub mod jup_order_engine;
+pub mod jup_perps;
 pub mod meteora;
 pub mod meteora_dlmm;
 pub mod meteora_damm_v2;
