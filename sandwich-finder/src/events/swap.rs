@@ -10,12 +10,6 @@ pub trait HelloMacro {
     fn hello_macro(&self);
 }
 
-#[derive(Clone, Serialize, Getters)]
-#[serde(rename_all = "camelCase")]
-pub struct TransactionV2 {
-
-}
-
 #[derive(Clone, Serialize, Getters, HelloMacro)]
 #[serde(rename_all = "camelCase")]
 pub struct SwapV2 {
@@ -39,7 +33,6 @@ pub struct SwapV2 {
     output_inner_ix_index: Option<u32>,
     // These fields are meant to be replaced when inserting to the db
     // Tx signature reference
-    sig_id: u64,
     // Slot that this tx landed
     slot: u64,
     // Order of this tx in the block
@@ -62,7 +55,6 @@ impl SwapV2 {
         output_ata: String,
         input_inner_ix_index: Option<u32>,
         output_inner_ix_index: Option<u32>,
-        sig_id: u64,
         slot: u64,
         inclusion_order: u32,
         ix_index: u32,
@@ -80,7 +72,6 @@ impl SwapV2 {
             output_ata,
             input_inner_ix_index,
             output_inner_ix_index,
-            sig_id,
             slot,
             inclusion_order,
             ix_index,

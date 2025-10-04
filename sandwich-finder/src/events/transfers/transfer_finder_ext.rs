@@ -25,7 +25,6 @@ impl<T: TransferFinder + private::Sealed> TransferFinderExt for T {
                             *transfer.amount(),
                             transfer.input_ata().clone(),
                             transfer.output_ata().clone(),
-                            *transfer.sig_id(),
                             slot,
                             raw_tx.index as u32,
                             i as u32,

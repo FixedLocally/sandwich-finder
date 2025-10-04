@@ -20,8 +20,6 @@ pub struct TransferV2 {
     input_ata: String,
     output_ata: String,
     // These fields are meant to be replaced when inserting to the db
-    // Tx signature reference
-    sig_id: u64,
     // Slot that this tx landed
     slot: u64,
     // Order of this tx in the block
@@ -54,7 +52,6 @@ impl TransferV2 {
         amount: u64,
         input_ata: String,
         output_ata: String,
-        sig_id: u64,
         slot: u64,
         inclusion_order: u32,
         ix_index: u32,
@@ -67,7 +64,6 @@ impl TransferV2 {
             amount,
             input_ata,
             output_ata,
-            sig_id,
             slot,
             inclusion_order,
             ix_index,

@@ -78,7 +78,6 @@ impl SugarSwapFinder {
             0,
             0,
             0,
-            0,
             inner_ix_index,
         )
     }

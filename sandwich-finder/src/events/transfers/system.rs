@@ -36,7 +36,6 @@ impl TransferFinder for SystemProgramTransferfinder {
                     0,
                     0,
                     0,
-                    0,
                     None,
                 )];
             }
@@ -70,7 +69,6 @@ impl TransferFinder for SystemProgramTransferfinder {
                     amount,
                     account_keys[from].to_string(),
                     account_keys[to].to_string(),
-                    0,
                     0,
                     0,
                     0,

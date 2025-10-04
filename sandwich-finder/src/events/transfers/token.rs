@@ -48,7 +48,6 @@ impl TransferFinder for TokenProgramTransferFinder {
                                 amount,
                                 from_ata.to_string(),
                                 to_ata.to_string(),
-                                0, // sig_id to be filled later
                                 0, // slot to be filled later
                                 0, // inclusion_order to be filled later
                                 0, // ix_index to be filled later
@@ -91,7 +90,6 @@ impl TransferFinder for TokenProgramTransferFinder {
                                 amount,
                                 from_ata_pubkey.to_string(),
                                 to_ata_pubkey.to_string(),
-                                0, // sig_id to be filled later
                                 0, // slot to be filled later
                                 0, // inclusion_order to be filled later
                                 0, // ix_index to be filled later
