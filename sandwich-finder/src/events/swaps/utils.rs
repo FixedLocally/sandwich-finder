@@ -19,7 +19,7 @@ pub fn mint_of(pubkey: &Pubkey, account_keys: &Vec<Pubkey>, meta: &TransactionSt
     return pre.or(post).or_else(|| Some(WSOL_MINT.to_string()));
 }
 
-pub fn token_transferred_inner(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Option<(Pubkey, Pubkey, String, u64)> {
+pub fn token_transferred_inner(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Option<(Pubkey, Pubkey, Pubkey, String, u64)> {
     // (from, to, mint, amount)
     if inner_ix.program_id_index >= account_keys.len() as u32 {
         return None;
@@ -30,10 +30,10 @@ pub fn token_transferred_inner(inner_ix: &InnerInstruction, account_keys: &Vec<P
             if inner_ix.data.len() < 9 {
                 return None;
             }
-            let (from_index, to_index) = match inner_ix.data[0] {
-                3 => (inner_ix.accounts[0], inner_ix.accounts[1]), // Transfer
-                12 => (inner_ix.accounts[0], inner_ix.accounts[2]), // TransferChecked
-                _ => (255, 255), // Not a transfer, will be caught by bounds check
+            let (from_index, to_index, auth_index) = match inner_ix.data[0] {
+                3 => (inner_ix.accounts[0], inner_ix.accounts[1], inner_ix.accounts[2]), // Transfer
+                12 => (inner_ix.accounts[0], inner_ix.accounts[2], inner_ix.accounts[3]), // TransferChecked
+                _ => (255, 255, 255), // Not a transfer, will be caught by bounds check
             };
             if from_index as usize >= account_keys.len() || to_index as usize >= account_keys.len() {
                 return None;
@@ -46,6 +46,7 @@ pub fn token_transferred_inner(inner_ix: &InnerInstruction, account_keys: &Vec<P
             return Some((
                 account_keys[from_index as usize],
                 account_keys[to_index as usize],
+                account_keys[auth_index as usize],
                 from_mint.or(to_mint).unwrap(),
                 u64::from_le_bytes(inner_ix.data[1..9].try_into().unwrap()),
             ));
@@ -60,6 +61,7 @@ pub fn token_transferred_inner(inner_ix: &InnerInstruction, account_keys: &Vec<P
             return Some((
                 account_keys[inner_ix.accounts[0] as usize],
                 account_keys[inner_ix.accounts[1] as usize],
+                account_keys[inner_ix.accounts[0] as usize],
                 WSOL_MINT.to_string(),
                 u64::from_le_bytes(inner_ix.data[4..12].try_into().unwrap()),
             ));

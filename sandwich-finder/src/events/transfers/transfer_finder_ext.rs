@@ -21,6 +21,7 @@ impl<T: TransferFinder + private::Sealed> TransferFinderExt for T {
                         let transfer = TransferV2::new(
                             transfer.outer_program().clone(),
                             transfer.program().clone(),
+                            transfer.authority().clone(),
                             transfer.mint().clone(),
                             *transfer.amount(),
                             transfer.input_ata().clone(),

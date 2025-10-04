@@ -22,6 +22,7 @@ fn event_to_vec(event: &Event) -> Vec<Value> {
             Value::from(swap.inclusion_order()),
             Value::from(swap.ix_index()),
             Value::from(swap.inner_ix_index()),
+            Value::from(swap.authority()),
             Value::from(swap.outer_program()),
             Value::from(swap.program()),
             Value::from(swap.amm()),
@@ -40,6 +41,7 @@ fn event_to_vec(event: &Event) -> Vec<Value> {
             Value::from(transfer.inclusion_order()),
             Value::from(transfer.ix_index()),
             Value::from(transfer.inner_ix_index()),
+            Value::from(transfer.authority()),
             Value::from(transfer.outer_program()),
             Value::from(transfer.program()),
             Value::from(None::<String>), // amm is None for transfer
@@ -84,7 +86,7 @@ async fn indexer() {
             let mut tx = conn.start_transaction(TxOpts::default()).unwrap();
             for chunk in event.chunks(CHUNK_SIZE) {
                 let event_params: Vec<_> = chunk.into_iter().flat_map(|e| event_to_vec(e)).collect();
-                let event_stmt = format!("insert into events (event_type, slot, inclusion_order, ix_index, inner_ix_index, outer_program, program, amm, input_mint, output_mint, input_amount, output_amount, input_ata, output_ata, input_inner_ix_index, output_inner_ix_index) values {}", "(?, ?, ?, ?, ifnull(?, -1), ?, ?, ?, ?, ?, ?, ?, ?, ?, ifnull(?, -1), ifnull(?, -1)),".repeat(event_params.len() / 16));
+                let event_stmt = format!("insert into events (event_type, slot, inclusion_order, ix_index, inner_ix_index, authority, outer_program, program, amm, input_mint, output_mint, input_amount, output_amount, input_ata, output_ata, input_inner_ix_index, output_inner_ix_index) values {}", "(?, ?, ?, ?, ifnull(?, -1), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ifnull(?, -1), ifnull(?, -1)),".repeat(event_params.len() / 17));
                 let tx_params: Vec<_> = chunk.into_iter().flat_map(|e| event_to_tx_vec(e)).collect();
                 let tx_stmt = format!("insert into transactions (slot, inclusion_order, sig, fee, cu_actual) values {}", "(?, ?, ?, ?, ?),".repeat(tx_params.len() / 5));
                 if !event_params.is_empty() {

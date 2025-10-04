@@ -12,6 +12,8 @@ pub struct TransferV2 {
     outer_program: Option<String>,
     // The actual token/system program
     program: String,
+    // Wallet that authorised the transfer
+    authority: String,
     // Mint of the token transferred
     mint: String,
     // Amounts of the transfer
@@ -48,6 +50,7 @@ impl TransferV2 {
     pub fn new(
         outer_program: Option<String>,
         program: String,
+        authority: String,
         mint: String,
         amount: u64,
         input_ata: String,
@@ -60,6 +63,7 @@ impl TransferV2 {
         Self {
             outer_program,
             program,
+            authority,
             mint,
             amount,
             input_ata,

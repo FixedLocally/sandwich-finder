@@ -21,7 +21,7 @@ const SELL_EXACT_OUT: &[u8] = &[0x5f, 0xc8, 0x47, 0x22, 0x08, 0x09, 0x0b, 0xa6];
 /// ~~Pump.fun~~ Sugar have a few variants but it doesn't matter since we rely on the logging instruction here
 /// buyExactIn, buyExactOut, buyMaxOut, sellExactIn, sellExactOut
 /// This one requires custom logic for event parsing since it issues so many transfer for all sorts of fees (all in SOL).
-/// mint[16..48], sol amount [48..56], token amount [56..64], is buy [64]
+/// mint[16..48], sol amount [48..56], token amount [56..64], is buy [64], user [65..97]
 /// suspiciously sumilar to pump.fun
 impl SugarSwapFinder {
     fn user_in_out_index(ix_data: &[u8]) -> (usize, usize) {
@@ -65,6 +65,7 @@ impl SugarSwapFinder {
         SwapV2::new(
             outer_program,
             SUGAR_PUBKEY.to_string(),
+            pubkey_from_slice(&data[65..97]).to_string(),
             amm.to_string(),
             input_mint.to_string(),
             output_mint.to_string(),

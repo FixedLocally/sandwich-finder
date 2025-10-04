@@ -42,7 +42,7 @@ impl SwapFinder for Discoverer {
                 let mut authorities = HashSet::new();
                 let mut mints = HashSet::new();
                 for inner_ix in &inner_ixs.instructions {
-                    if let Some((_from, _to, mint, _amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
+                    if let Some((_from, _to, _auth, mint, _amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
                         transfer_count += 1;
                         match inner_ix.data[0] {
                             2 => { // System transfer
@@ -70,7 +70,7 @@ impl SwapFinder for Discoverer {
                 }
                 if transfer_count >= 2 && authorities.len() >= 2 && mints.len() >= 2 {
                     return vec![
-                        SwapV2::new(None, ix.program_id.to_string(), "".to_string(), "".to_string(), "".to_string(), 0, 0, "".to_string(), "".to_string(), None, None, 0, 0, 0, None),
+                        SwapV2::new(None, ix.program_id.to_string(), "".to_string(), "".to_string(), "".to_string(), "".to_string(), 0, 0, "".to_string(), "".to_string(), None, None, 0, 0, 0, None),
                     ];
                 }
                 vec![]

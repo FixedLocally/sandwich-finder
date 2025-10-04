@@ -21,10 +21,10 @@ impl TokenProgramTransferFinder {
         Some(u64::from_le_bytes(data[1..9].try_into().unwrap()))
     }
 
-    fn from_to_indexs(data: &[u8]) -> Option<(usize, usize)> {
+    fn from_to_indexs(data: &[u8]) -> Option<(usize, usize, usize)> {
         match data[0] {
-            3 => Some((0, 1)), // Transfer
-            12 => Some((0, 2)), // TransferChecked
+            3 => Some((0, 1, 2)), // Transfer
+            12 => Some((0, 2, 3)), // TransferChecked
             _ => None, // Not a transfer
         }
     }
@@ -34,16 +34,22 @@ impl TransferFinder for TokenProgramTransferFinder {
     fn find_transfers(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Vec<TransferV2> {
         if Self::is_token_program(ix.program_id) {
             if let Some(amount) = Self::amount_from_data(&ix.data) {
-                if let Some((from_index, to_index)) = Self::from_to_indexs(&ix.data) {
+                if let Some((from_index, to_index, auth_index)) = Self::from_to_indexs(&ix.data) {
                     if from_index < ix.accounts.len() && to_index < ix.accounts.len() {
                         let from_ata = ix.accounts[from_index].pubkey;
                         let to_ata = ix.accounts[to_index].pubkey;
+                        if from_ata == to_ata {
+                            // Don't log self transfers
+                            return vec![];
+                        }
+                        let auth = ix.accounts[auth_index].pubkey;
                         let mint = mint_of(&from_ata, account_keys, meta)
                             .or_else(|| mint_of(&to_ata, account_keys, meta));
                         if let Some(mint) = mint {
                             return vec![TransferV2::new(
                                 None,
                                 ix.program_id.to_string(),
+                                auth.to_string(),
                                 mint,
                                 amount,
                                 from_ata.to_string(),
@@ -67,7 +73,7 @@ impl TransferFinder for TokenProgramTransferFinder {
                 return;
             }
             if let Some(amount) = Self::amount_from_data(&inner_ix.data) {
-                if let Some((from_index, to_index)) = Self::from_to_indexs(&inner_ix.data) {
+                if let Some((from_index, to_index, auth_index)) = Self::from_to_indexs(&inner_ix.data) {
                     if from_index < inner_ix.accounts.len() && to_index < inner_ix.accounts.len() {
                         let from_ata = inner_ix.accounts[from_index] as usize;
                         let to_ata = inner_ix.accounts[to_index] as usize;
@@ -78,14 +84,20 @@ impl TransferFinder for TokenProgramTransferFinder {
                             // Don't log self transfers
                             return;
                         }
+                        let auth = inner_ix.accounts[auth_index] as usize;
+                        if auth >= account_keys.len() {
+                            return;
+                        }
                         let from_ata_pubkey = account_keys[from_ata];
                         let to_ata_pubkey = account_keys[to_ata];
+                        let auth_pubkey = account_keys[auth];
                         let mint = mint_of(&from_ata_pubkey, account_keys, meta)
                             .or_else(|| mint_of(&to_ata_pubkey, account_keys, meta));
                         if let Some(mint) = mint {
                             transfers.push(TransferV2::new(
                                 Some(ix.program_id.to_string()),
                                 account_keys[inner_ix.program_id_index as usize].to_string(),
+                                auth_pubkey.to_string(),
                                 mint,
                                 amount,
                                 from_ata_pubkey.to_string(),

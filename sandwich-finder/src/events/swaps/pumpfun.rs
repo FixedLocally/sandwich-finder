@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta};
 
@@ -20,7 +22,7 @@ const LOG_DISCRIMINANT: &[u8] = &[
 /// SOL transfers use the system program instead of token program.
 /// Swap direction is determined instruction's name.
 /// This one requires custom logic for event parsing since it issues so many transfer for all sorts of fees (all in SOL).
-/// mint[16..48], sol amount [48..56], token amount [56..64], is buy [64], fee [177..185], creator fee [225..233]
+/// mint[16..48], sol amount [48..56], token amount [56..64], is buy [64], user [65..97], fee [177..185], creator fee [225..233]
 impl PumpFunSwapFinder {
     fn user_in_out_index(ix_data: &[u8]) -> (usize, usize) {
         if ix_data[0] == 0x66 {
@@ -52,6 +54,7 @@ impl PumpFunSwapFinder {
         SwapV2::new(
             outer_program,
             PDF_PUBKEY.to_string(),
+            pubkey_from_slice(&data[65..97]).to_string(),
             amm.to_string(),
             input_mint.to_string(),
             output_mint.to_string(),

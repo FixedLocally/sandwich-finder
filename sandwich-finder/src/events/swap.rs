@@ -17,6 +17,8 @@ pub struct SwapV2 {
     outer_program: Option<String>,
     // The actual AMM program
     program: String,
+    // Wallet that authorised the swap
+    authority: String,
     // The AMM used for this trade
     amm: String,
     // In/out mints of the swap
@@ -46,6 +48,7 @@ impl SwapV2 {
     pub fn new(
         outer_program: Option<String>,
         program: String,
+        authority: String,
         amm: String,
         input_mint: String,
         output_mint: String,
@@ -63,6 +66,7 @@ impl SwapV2 {
         Self {
             outer_program,
             program,
+            authority,
             amm,
             input_mint,
             output_mint,

@@ -29,6 +29,7 @@ impl TransferFinder for SystemProgramTransferfinder {
                 return vec![TransferV2::new(
                     None,
                     SYSTEM_PROGRAM_ID.to_string(),
+                    ix.accounts[0].pubkey.to_string(),
                     WSOL_MINT.to_string(),
                     amount,
                     ix.accounts[0].pubkey.to_string(),
@@ -65,6 +66,7 @@ impl TransferFinder for SystemProgramTransferfinder {
                 transfers.push(TransferV2::new(
                     Some(ix.program_id.to_string()),
                     SYSTEM_PROGRAM_ID.to_string(),
+                    account_keys[from].to_string(),
                     WSOL_MINT.to_string(),
                     amount,
                     account_keys[from].to_string(),

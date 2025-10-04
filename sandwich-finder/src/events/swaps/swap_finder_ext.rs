@@ -59,12 +59,13 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let mut output_mint = None;
             let mut input_index = None;
             let mut output_index = None;
+            let mut authority = "".to_string();
             let (input_ata, output_ata) = Self::user_ata_ix(ix);
             let (pool_input_ata, pool_output_ata) = Self::pool_ata_ix(ix);
             let blacklist_atas: Vec<Pubkey> = blacklist_ata_indexes.iter().filter_map(|&i| ix.accounts.get(i).map(|acc| acc.pubkey)).collect();
             debug_println!("{} -> {} {} -> {}", input_ata, pool_output_ata, pool_input_ata, output_ata);
             inner_ixs.instructions.iter().skip(ixs_to_skip).enumerate().for_each(|(i, inner_ix)| {
-                if let Some((from, to, mint, amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
+                if let Some((from, to, auth, mint, amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
                     debug_println!("token transferred: {} -> {} (mint: {}, amount: {})", from, to, mint, amount);
                     if blacklist_atas.contains(&from) || blacklist_atas.contains(&to) {
                         return; // Skip blacklisted ATAs
@@ -73,6 +74,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                         input_mint = Some(mint);
                         input_amount = amount;
                         input_index = Some(i as u32 + ixs_to_skip as u32);
+                        authority = auth.to_string();
                     } else if to == output_ata && (from == pool_input_ata || pool_input_ata == Pubkey::default()) {
                         output_mint = Some(mint);
                         output_amount = amount;
@@ -85,6 +87,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                 SwapV2::new(
                     None,
                     ix.program_id.to_string(),
+                    authority,
                     Self::amm_ix(ix).to_string(),
                     input_mint.unwrap_or_default(),
                     output_mint.unwrap_or_default(),
@@ -129,6 +132,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let mut output_mint = None;
             let mut input_index = None;
             let mut output_index = None;
+            let mut authority = "".to_string();
             let (input_ata, output_ata) = Self::user_ata_inner_ix(inner_ix, account_keys);
             let (pool_input_ata, pool_output_ata) = Self::pool_ata_inner_ix(inner_ix, account_keys);
             debug_println!("{} -> {} (pool: {} -> {})", input_ata, output_ata, pool_input_ata, pool_output_ata);
@@ -137,7 +141,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                 if next_inner_ix.program_id_index >= account_keys.len() as u32 {
                     continue;
                 }
-                if let Some((from, to, mint, amount)) = token_transferred_inner(&next_inner_ix, &account_keys, &meta) {
+                if let Some((from, to, auth, mint, amount)) = token_transferred_inner(&next_inner_ix, &account_keys, &meta) {
                     let blacklist_atas: Vec<Pubkey> = blacklist_ata_indexes.iter().filter_map(|&i| next_inner_ix.accounts.get(i).map(|acc| account_keys[*acc as usize])).collect();
                     if blacklist_atas.contains(&from) || blacklist_atas.contains(&to) {
                         continue; // Skip blacklisted ATAs
@@ -146,6 +150,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                         input_mint = Some(mint);
                         input_amount = amount;
                         input_index = Some(j as u32);
+                        authority = auth.to_string();
                     } else if to == output_ata && (from == pool_input_ata || pool_input_ata == Pubkey::default()) {
                         output_mint = Some(mint);
                         output_amount = amount;
@@ -157,6 +162,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                     swaps.push(SwapV2::new(
                         Some(ix.program_id.to_string()),
                         program_id.to_string(),
+                        authority,
                         Self::amm_inner_ix(inner_ix, account_keys).to_string(),
                         input_mint.clone().unwrap(),
                         output_mint.clone().unwrap(),
@@ -179,6 +185,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             swaps.push(SwapV2::new(
                 Some(ix.program_id.to_string()),
                 program_id.to_string(),
+                authority,
                 Self::amm_inner_ix(inner_ix, account_keys).to_string(),
                 input_mint.clone().unwrap_or_default(),
                 output_mint.clone().unwrap_or_default(),
@@ -207,6 +214,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                         let swap = SwapV2::new(
                             swap.outer_program().clone(),
                             swap.program().clone(),
+                            swap.authority().clone(),
                             swap.amm().clone(),
                             swap.input_mint().clone(),
                             swap.output_mint().clone(),
