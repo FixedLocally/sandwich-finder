@@ -137,8 +137,6 @@ pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receive
                             debug_println!("{:?}", &tx);
                             return;
                         }
-                        let swap_len = swaps.len();
-                        let transfer_len = transfers.len();
                         let mut tx_events = swaps;
                         tx_events.extend(transfers);
                         // println!("found {} swaps in slot {} tx {}", swaps.len(), slot, bs58::encode(&tx.0.signature).into_string());
@@ -164,11 +162,15 @@ pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receive
                             }
                         }
                         events.extend(tx_events);
-                        println!("scheduled {} swaps and {} transfers in slot {} tx {}", swap_len, transfer_len, slot, bs58::encode(&tx.0.signature).into_string());
                     });
                     let event_len = events.len();
-                    let _ = sender.send(Arc::new(events));
-                    println!("sent {} events from slot {}", event_len, slot);
+                    tokio::spawn({
+                        let sender = sender.clone();
+                        async move {
+                            let _ = sender.send(Arc::new(events)).await;
+                            println!("sent {} events from slot {}", event_len, slot);
+                        }
+                    });
                 }
                 Some(UpdateOneof::Account(account)) => {
                     if let Some(account_info) = account.account {

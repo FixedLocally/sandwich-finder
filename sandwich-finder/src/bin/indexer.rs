@@ -1,6 +1,5 @@
 use std::env;
 
-use dashmap::DashMap;
 use mysql::{prelude::Queryable, TxOpts, Value};
 use sandwich_finder::{events::event::{start_event_processor, Event}, utils::create_db_pool};
 use tokio::join;
