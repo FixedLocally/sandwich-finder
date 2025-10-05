@@ -2,15 +2,12 @@ use std::fmt::Debug;
 
 use derive_getters::Getters;
 use serde::Serialize;
-use sandwich_finder_derive::HelloMacro;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::{prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta}};
 
-pub trait HelloMacro {
-    fn hello_macro(&self);
-}
+use crate::events::common::Timestamp;
 
-#[derive(Clone, Serialize, Getters, HelloMacro)]
+#[derive(Clone, Serialize, Getters)]
 #[serde(rename_all = "camelCase")]
 pub struct SwapV2 {
     // The wrapper program for this swap, if any
@@ -34,14 +31,7 @@ pub struct SwapV2 {
     input_inner_ix_index: Option<u32>,
     output_inner_ix_index: Option<u32>,
     // These fields are meant to be replaced when inserting to the db
-    // Tx signature reference
-    // Slot that this tx landed
-    slot: u64,
-    // Order of this tx in the block
-    inclusion_order: u32,
-    // ix/inner ix index within the tx
-    ix_index: u32,
-    inner_ix_index: Option<u32>,
+    timestamp: Timestamp,
 }
 
 impl SwapV2 {
@@ -76,11 +66,26 @@ impl SwapV2 {
             output_ata,
             input_inner_ix_index,
             output_inner_ix_index,
-            slot,
-            inclusion_order,
-            ix_index,
-            inner_ix_index,
+            timestamp: Timestamp::new(
+                slot,
+                inclusion_order,
+                ix_index,
+                inner_ix_index,
+            ),
         }
+    }
+
+    pub fn slot(&self) -> &u64 {
+        self.timestamp.slot()
+    }
+    pub fn inclusion_order(&self) -> &u32 {
+        self.timestamp.inclusion_order()
+    }
+    pub fn ix_index(&self) -> &u32 {
+        self.timestamp.ix_index()
+    }
+    pub fn inner_ix_index(&self) -> &Option<u32> {
+        self.timestamp.inner_ix_index()
     }
 }
 
@@ -88,7 +93,7 @@ impl Debug for SwapV2 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // f.debug_struct("SwapV2").field("outer_program", &self.outer_program).field("program", &self.program).field("amm", &self.amm).field("input_mint", &self.input_mint).field("output_mint", &self.output_mint).field("input_amount", &self.input_amount).field("output_amount", &self.output_amount).field("input_ata", &self.input_ata).field("output_ata", &self.output_ata).field("sig_id", &self.sig_id).field("slot", &self.slot).field("inclusion_order", &self.inclusion_order).field("ix_index", &self.ix_index).field("inner_ix_index", &self.inner_ix_index).finish()
         f.write_str("Swap")?;
-        f.write_str(&format!(" in slot {} (order {}, ix {}, inner_ix {:?})\n", self.slot, self.inclusion_order, self.ix_index, self.inner_ix_index))?;
+        f.write_str(&format!(" in slot {} (order {}, ix {}, inner_ix {:?})\n", self.slot(), self.inclusion_order(), self.ix_index(), self.inner_ix_index()))?;
         if let Some(outer_program) = &self.outer_program {
             f.write_str(&format!(" via {}\n", outer_program))?;
         }
