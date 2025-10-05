@@ -85,9 +85,9 @@ async fn indexer() {
         tokio::spawn(async move {
             let mut tx = conn.start_transaction(TxOpts::default()).unwrap();
             for chunk in event.chunks(CHUNK_SIZE) {
-                let event_params: Vec<_> = chunk.into_iter().flat_map(|e| event_to_vec(e)).collect();
+                let event_params: Vec<_> = chunk.iter().flat_map(event_to_vec).collect();
                 let event_stmt = format!("insert into events (event_type, slot, inclusion_order, ix_index, inner_ix_index, authority, outer_program, program, amm, input_mint, output_mint, input_amount, output_amount, input_ata, output_ata, input_inner_ix_index, output_inner_ix_index) values {}", "(?, ?, ?, ?, ifnull(?, -1), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ifnull(?, -1), ifnull(?, -1)),".repeat(event_params.len() / 17));
-                let tx_params: Vec<_> = chunk.into_iter().flat_map(|e| event_to_tx_vec(e)).collect();
+                let tx_params: Vec<_> = chunk.iter().flat_map(event_to_tx_vec).collect();
                 let tx_stmt = format!("insert into transactions (slot, inclusion_order, sig, fee, cu_actual) values {}", "(?, ?, ?, ?, ?),".repeat(tx_params.len() / 5));
                 if !event_params.is_empty() {
                     tx.exec_drop(event_stmt.trim_end_matches(","), event_params).unwrap();

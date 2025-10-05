@@ -58,7 +58,7 @@ async fn main() {
     let mut report = File::create("report.csv").unwrap();
     let mut filtered_report = File::create("filtered_report.csv").unwrap();
     eprintln!("[+{:7}ms] Connected to MySQL", now.elapsed().as_millis());
-    let offset_range = vec![0.2, 1.0, 0.6, 0.4, 0.2];
+    let offset_range = [0.2, 1.0, 0.6, 0.4, 0.2];
     // fetch leaders within the concerned slot range to serve as the basis of normalisation
     let leader_count = conn.exec_fold("select leader, count(*) from leader_schedule where slot between ? and ? group by leader", slot_range, HashMap::new(), |mut acc, row: (String, u64)| {
         let count = acc.entry(row.0).or_insert(0);
@@ -98,7 +98,7 @@ async fn main() {
         dont_front.insert(leader, count as u64);
     });
     eprintln!("[+{:7}ms] Consolidated dont_front", now.elapsed().as_millis());
-    for i in 0..offset_range.len() {
+    for (i, _) in offset_range.iter().enumerate() {
         conn.exec_iter(&offset_stmt, (i, slot_range.0, slot_range.1)).unwrap().for_each(|row| {
             let (leader, count): (String, i32) = mysql::from_row(row.unwrap());
             let count = count as f64 * offset_range[i];
@@ -119,11 +119,11 @@ async fn main() {
     let norm_factor = offset_range.iter().sum::<f64>();
     let normalised_scores = scores.iter().map(|(k, v)| {
         let count = leader_count.get(k).unwrap_or(&0);
-        (k.clone(), *v as f64 / *count as f64 / norm_factor)
+        (k.clone(), *v / *count as f64 / norm_factor)
     }).collect::<HashMap<String, f64>>();
     let presence_normalised_scores = presence_scores.iter().map(|(k, v)| {
         let count = leader_count.get(k).unwrap_or(&0);
-        (k.clone(), *v as f64 / *count as f64 / norm_factor)
+        (k.clone(), *v / *count as f64 / norm_factor)
     }).collect::<HashMap<String, f64>>();
     let mut entries = normalised_scores.iter().map(|(k, v)| {
         let slots = leader_count[k] as f64;
@@ -139,10 +139,10 @@ async fn main() {
     let validator_info = validator_info_fut.await.unwrap();
     let validator_info = validator_info.into_iter().map(|v| (v.identity.clone(), v)).collect::<HashMap<String, ValidatorInfo>>();
     // print report
-    writeln!(report, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", "leader", "vote", "name", "Sc", "Sc_p", "R-Sc", "R-Sc_p", "slots", "Sc_p_lb", "Sc_p_ub", "Sc_p_flag", "Sc_lb", "Sc_ub", "Sc_flag", "dontfront_violations").unwrap();
-    writeln!(filtered_report, "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}", "leader", "vote", "name", "Sc", "Sc_p", "R-Sc", "R-Sc_p", "slots", "Sc_p_lb", "Sc_p_ub", "Sc_p_flag", "Sc_lb", "Sc_ub", "Sc_flag", "dontfront_violations").unwrap();
-    let w_sc_p = total_presence_score as f64 / (slot_range.1 - slot_range.0) as f64 / norm_factor;
-    let w_sc = total_score as f64 / (slot_range.1 - slot_range.0) as f64 / norm_factor;
+    writeln!(report, "leader,vote,name,Sc,Sc_p,R-Sc,R-Sc_p,slots,Sc_p_lb,Sc_p_ub,Sc_p_flag,Sc_lb,Sc_ub,Sc_flag,dontfront_violations").unwrap();
+    writeln!(filtered_report, "leader,vote,name,Sc,Sc_p,R-Sc,R-Sc_p,slots,Sc_p_lb,Sc_p_ub,Sc_p_flag,Sc_lb,Sc_ub,Sc_flag,dontfront_violations").unwrap();
+    let w_sc_p = total_presence_score / (slot_range.1 - slot_range.0) as f64 / norm_factor;
+    let w_sc = total_score / (slot_range.1 - slot_range.0) as f64 / norm_factor;
     for (leader, sc, sc_p, rsc, rsc_p, slots) in entries.iter() {
         let (lb, ub) = p_conf_interval(*slots as f64, *rsc_p);
         let (n_lb, n_ub) = count_conf_interval(mean, stdev as f64, *slots as f64);

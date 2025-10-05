@@ -106,7 +106,7 @@ async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>, db_sender: mpsc::S
                 let mut amm_swaps: HashMap<&String, Vec<&Swap>> = HashMap::new();
                 block_txs.iter().for_each(|tx| {
                     tx.swaps().iter().for_each(|swap| {
-                        let swaps = amm_swaps.entry(&swap.amm()).or_insert(Vec::new());
+                        let swaps = amm_swaps.entry(swap.amm()).or_default();
                         swaps.push(swap);
                     });
                 });
@@ -119,7 +119,7 @@ async fn sandwich_finder_loop(sender: mpsc::Sender<Sandwich>, db_sender: mpsc::S
                     // within the group, further group by direction (input token)
                     let mut input_swaps: HashMap<&String, Vec<&Swap>> = HashMap::new();
                     swaps.iter().for_each(|swap| {
-                        let input_swaps = input_swaps.entry(&swap.input_mint()).or_insert(Vec::new());
+                        let input_swaps = input_swaps.entry(swap.input_mint()).or_default();
                         input_swaps.push(swap);
                     });
                     // bail out if there's not exactly 2 directions
@@ -321,9 +321,9 @@ async fn handle_search_tx(State(state): State<AppState>, Path(txid): Path<String
             SwapType::Backrun => backrun = Some(swap),
         };
     }
-    if frontrun.is_some() && backrun.is_some() && victims.len() > 0 {
+    if frontrun.is_some() && backrun.is_some() && !victims.is_empty() {
         let sandwich = Sandwich::new(
-            slot as u64,
+            slot,
             frontrun.unwrap(),
             victims,
             backrun.unwrap(),
