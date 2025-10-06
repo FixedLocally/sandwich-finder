@@ -16,7 +16,7 @@ pub fn mint_of(pubkey: &Pubkey, account_keys: &Vec<Pubkey>, meta: &TransactionSt
         .iter()
         .find(|&balance| balance.account_index == target_index.unwrap() as u32)
         .map_or(None, |balance| Some(balance.mint.clone()));
-    return pre.or(post).or_else(|| Some(WSOL_MINT.to_string()));
+    return pre.or(post);
 }
 
 pub fn token_transferred_inner(inner_ix: &InnerInstruction, account_keys: &Vec<Pubkey>, meta: &TransactionStatusMeta) -> Option<(Pubkey, Pubkey, Pubkey, String, u64)> {
@@ -38,16 +38,21 @@ pub fn token_transferred_inner(inner_ix: &InnerInstruction, account_keys: &Vec<P
             if from_index as usize >= account_keys.len() || to_index as usize >= account_keys.len() {
                 return None;
             }
+            let checked_mint = if inner_ix.data[0] == 12 {
+                Some(account_keys[inner_ix.accounts[1] as usize].to_string())
+            } else {
+                None
+            };
             let from_mint = mint_of(&account_keys[from_index as usize], &account_keys, &meta);
             let to_mint = mint_of(&account_keys[to_index as usize], &account_keys, &meta);
-            if from_mint.is_none() && to_mint.is_none() {
+            if checked_mint.is_none() && from_mint.is_none() && to_mint.is_none() {
                 return None;
             }
             return Some((
                 account_keys[from_index as usize],
                 account_keys[to_index as usize],
                 account_keys[auth_index as usize],
-                from_mint.or(to_mint).unwrap(),
+                checked_mint.or(from_mint).or(to_mint).unwrap(),
                 u64::from_le_bytes(inner_ix.data[1..9].try_into().unwrap()),
             ));
         },
