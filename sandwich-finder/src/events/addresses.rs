@@ -34,3 +34,16 @@ pub const TOKEN_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenkegQfeZyiNwAJb
 pub const TOKEN_2022_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 pub const SYSTEM_PROGRAM_ID: Pubkey = Pubkey::from_str_const("11111111111111111111111111111111");
 pub const WSOL_MINT: Pubkey = Pubkey::from_str_const("So11111111111111111111111111111111111111112");
+
+pub const JUP_V6_PROGRAM_ID: Pubkey = Pubkey::from_str_const("JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4");
+pub const JUP_V4_PROGRAM_ID: Pubkey = Pubkey::from_str_const("JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB");
+pub const DFLOW_PROGRAM_ID: Pubkey = Pubkey::from_str_const("DF1ow4tspfHX9JwWJsAb9epbkA8hmpSEAtxXy1V27QBH");
+
+pub fn is_known_aggregator(program_id: &Pubkey) -> bool {
+    matches!(
+        *program_id,
+        JUP_V6_PROGRAM_ID
+            | JUP_V4_PROGRAM_ID
+            | DFLOW_PROGRAM_ID
+    )
+}
