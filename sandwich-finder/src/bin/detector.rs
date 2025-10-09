@@ -1,5 +1,6 @@
 use std::{collections::{HashMap, HashSet}, sync::Arc};
 
+use futures::future::join_all;
 use mysql::{prelude::Queryable, Pool, Row};
 use sandwich_finder::{events::{addresses::is_known_aggregator, common::Timestamp, sandwich::{SandwichCandidate, TradePair}, swap::SwapV2, transaction::TransactionV2, transfer::TransferV2}, utils::create_db_pool};
 use serde::{Deserialize, Serialize};
@@ -33,8 +34,8 @@ struct TransferGraph {
     slot: u64,
 }
 
-async fn get_events(pool: &Pool, start_slot: u64, end_slot: u64) -> (Vec<SwapV2>, Vec<TransferV2>, Vec<TransactionV2>) {
-    let mut conn = pool.get_conn().unwrap();
+async fn get_events(conn: Pool, start_slot: u64, end_slot: u64) -> (Vec<SwapV2>, Vec<TransferV2>, Vec<TransactionV2>) {
+    let conn = &mut conn.get_conn().unwrap();
     let res: Vec<Row> = conn.exec("select event_type, slot, inclusion_order, ix_index, inner_ix_index, authority, outer_program, program, amm, input_mint, output_mint, input_amount, output_amount, input_ata, output_ata, input_inner_ix_index, output_inner_ix_index from events where slot between ? and ?", vec![start_slot, end_slot]).unwrap();
     let mut swaps = vec![];
     let mut transfers = vec![];
@@ -107,24 +108,24 @@ async fn get_events(pool: &Pool, start_slot: u64, end_slot: u64) -> (Vec<SwapV2>
 }
 
 /// This function expects the events to be sorted in chronological order (which [get_event] does)
-fn detect_main(swaps: Vec<SwapV2>, transfers: Vec<TransferV2>, txs: Vec<TransactionV2>) {
+fn detect_main(swaps: &[SwapV2], transfers: &[TransferV2], txs: &[TransactionV2]) {
     // Group swaps by AMM then direction also by outer program
-    let mut amm_swaps: HashMap<Arc<str>, HashMap<TradePair, Vec<&SwapV2>>> = HashMap::new();
+    let mut amm_swaps: HashMap<Arc<str>, HashMap<TradePair, Vec<SwapV2>>> = HashMap::new();
     for swap in swaps.iter() {
         let pair = TradePair::new(
-            swap.amm().to_string(),
-            swap.input_mint().to_string(),
-            swap.output_mint().to_string(),
+            swap.amm().clone(),
+            swap.input_mint().clone(),
+            swap.output_mint().clone(),
         );
-        amm_swaps.entry(swap.amm().clone()).or_default().entry(pair.clone()).or_default().push(swap);
+        amm_swaps.entry(swap.amm().clone()).or_default().entry(pair.clone()).or_default().push(swap.clone());
     }
 
     // for each swap, we want to match it with a series of swaps before it in the same direction and a series of swaps after it in the opposite direction
     for swap in swaps.iter() {
         let pair = TradePair::new(
-            swap.amm().to_string(),
-            swap.input_mint().to_string(),
-            swap.output_mint().to_string(),
+            swap.amm().clone(),
+            swap.input_mint().clone(),
+            swap.output_mint().clone(),
         );
         // println!("Analyzing swap {:?} for sandwiches", swap);
         let rev_pair = pair.reverse();
@@ -135,19 +136,19 @@ fn detect_main(swaps: Vec<SwapV2>, transfers: Vec<TransferV2>, txs: Vec<Transact
         }
         // we then group the swaps before and after by outer program and see if some outer program may be sandwiching this swap
         let before_outer = {
-            let mut map: HashMap<Arc<str>, Vec<&SwapV2>> = HashMap::new();
+            let mut map: HashMap<Arc<str>, Vec<SwapV2>> = HashMap::new();
             for s in before_swaps.iter() {
                 if let Some(outer) = s.outer_program() {
-                    map.entry(outer.clone()).or_default().push(*s);
+                    map.entry(outer.clone()).or_default().push(s.clone());
                 }
             }
             map
         };
         let after_outer = {
-            let mut map: HashMap<Arc<str>, Vec<&SwapV2>> = HashMap::new();
+            let mut map: HashMap<Arc<str>, Vec<SwapV2>> = HashMap::new();
             for s in after_swaps.iter() {
                 if let Some(outer) = s.outer_program() {
-                    map.entry(outer.clone()).or_default().push(*s);
+                    map.entry(outer.clone()).or_default().push(s.clone());
                 }
             }
             map
@@ -163,11 +164,11 @@ fn detect_main(swaps: Vec<SwapV2>, transfers: Vec<TransferV2>, txs: Vec<Transact
                     for j in i+1..=before_swaps.len() {
                         for m in 0..after_swaps.len() {
                             for n in m+1..=after_swaps.len() {
-                                let frontrun = before_swaps[i..j].to_vec();
-                                let frontrun_last = before_swaps[j - 1];
-                                let backrun = after_swaps[m..n].to_vec();
-                                let backrun_first = after_swaps[m];
-                                let victim = swaps.iter().filter(|s| s.timestamp() > frontrun_last.timestamp() && s.timestamp() < backrun_first.timestamp() && s.amm() == swap.amm() && s.input_mint() == swap.input_mint() && s.output_mint() == swap.output_mint()).collect::<Vec<_>>();
+                                let frontrun = &before_swaps[i..j];
+                                let frontrun_last = before_swaps[j - 1].clone();
+                                let backrun = &after_swaps[m..n];
+                                let backrun_first = after_swaps[m].clone();
+                                let victim = &swaps.iter().filter(|s| s.timestamp() > frontrun_last.timestamp() && s.timestamp() < backrun_first.timestamp() && s.amm() == swap.amm() && s.input_mint() == swap.input_mint() && s.output_mint() == swap.output_mint()).cloned().collect::<Vec<_>>()[..];
                                 if let Ok(sandwich) = SandwichCandidate::new(frontrun, victim, backrun, &transfers, &txs) {
                                     println!("Found sandwich {:?}", sandwich);
                                 }
@@ -199,17 +200,40 @@ async fn main() {
     } else {
         start_slot
     };
-    // loop from start to end slot, 4 slots at a time
+    // alignment
+    let start_slot = start_slot / 4 * 4;
+    let end_slot = end_slot / 4 * 4 + 3;
+    // fetch events for 1k slots at a time and process in groups of 4 slots
     let pool = create_db_pool();
-    for slot in (start_slot..=end_slot).step_by(4) {
-        let (swaps, transfers, txs) = get_events(&pool, slot / 4 * 4, slot / 4 * 4 + 3).await;
-        println!("Processing slots {} to {}", slot / 4 * 4, slot / 4 * 4 + 3);
-        println!("Swaps: {:#?}", swaps.len());
-        println!("Transfers: {:#?}", transfers.len());
-        println!("Txs: {:#?}", txs.len());
-        
-        detect_main(swaps, transfers, txs);
-    }
+    let handles: Vec<_> = (start_slot..=end_slot).step_by(1000).map(|chunk_start| {
+        let chunk_end = (chunk_start + 999).min(end_slot);
+        let pool = pool.clone(); // docs said this is cloneable
+        tokio::spawn(async move {
+            let (swaps, transfers, txs) = get_events(pool, chunk_start, chunk_end).await;
+            let mut swaps_start = 0;
+            let mut transfers_start = 0;
+            let mut txs_start = 0;
+            for slot in (chunk_start..=chunk_end).step_by(4) {
+                let swaps_end = swaps.iter().skip(swaps_start).position(|s| *s.slot() >= slot + 4).map(|n| n + swaps_start).unwrap_or(swaps.len());
+                let transfers_end = transfers.iter().skip(transfers_start).position(|t| *t.slot() >= slot + 4).map(|n| n + transfers_start).unwrap_or(transfers.len());
+                let txs_end = txs.iter().skip(txs_start).position(|t| *t.slot() >= slot + 4).map(|n| n + txs_start).unwrap_or(txs.len());
+
+                let slot_swaps = &swaps[swaps_start..swaps_end];
+                let slot_transfers = &transfers[transfers_start..transfers_end];
+                let slot_txs = &txs[txs_start..txs_end];
+                println!("Processing slots {} to {}", slot, slot + 3);
+                println!("Swaps: {:#?}", slot_swaps.len());
+                println!("Transfers: {:#?}", slot_transfers.len());
+                println!("Txs: {:#?}", slot_txs.len());
+                detect_main(slot_swaps, slot_transfers, slot_txs);
+
+                swaps_start = swaps_end;
+                transfers_start = transfers_end;
+                txs_start = txs_end;
+            }
+        })
+    }).collect();
+    join_all(handles).await;
 }
 
 /*

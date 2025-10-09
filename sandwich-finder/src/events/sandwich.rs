@@ -27,13 +27,13 @@ pub enum SandwichError {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Getters)]
 pub struct TradePair {
-    amm: String,
-    input_mint: String,
-    output_mint: String,
+    amm: Arc<str>,
+    input_mint: Arc<str>,
+    output_mint: Arc<str>,
 }
 
 impl TradePair {
-    pub fn new(amm: String, input_mint: String, output_mint: String) -> Self {
+    pub fn new(amm: Arc<str>, input_mint: Arc<str>, output_mint: Arc<str>) -> Self {
         Self {
             amm,
             input_mint,
@@ -65,29 +65,29 @@ impl TradePair {
 /// the justification being well-known aggregators aren't designed for sandwichers to keep track of their tokens across txs.
 #[derive(Debug)]
 pub struct SandwichCandidate {
-    frontrun: Vec<SwapV2>,
-    victim: Vec<SwapV2>,
-    backrun: Vec<SwapV2>,
-    transfers: Vec<TransferV2>,
-    txs: Vec<TransactionV2>,
+    frontrun: Arc<[SwapV2]>,
+    victim: Arc<[SwapV2]>,
+    backrun: Arc<[SwapV2]>,
+    transfers: Arc<[TransferV2]>,
+    txs: Arc<[TransactionV2]>,
 }
 
-fn pair_from_swaps(swaps: &Vec<&SwapV2>, check_wrapper: bool) -> Option<(Option<Arc<str>>, TradePair)> {
+fn pair_from_swaps(swaps: &[SwapV2], check_wrapper: bool) -> Option<(Option<Arc<str>>, TradePair)> {
     if swaps.is_empty() {
         return None;
     }
     let first = &swaps[0];
     let pair = TradePair {
-        amm: first.amm().to_string(),
-        input_mint: first.input_mint().to_string(),
-        output_mint: first.output_mint().to_string(),
+        amm: first.amm().clone(),
+        input_mint: first.input_mint().clone(),
+        output_mint: first.output_mint().clone(),
     };
     let outer_program = if check_wrapper { first.outer_program().clone() } else { None };
     for swap in swaps.iter() {
         let swap_pair = TradePair {
-            amm: swap.amm().to_string(),
-            input_mint: swap.input_mint().to_string(),
-            output_mint: swap.output_mint().to_string(),
+            amm: swap.amm().clone(),
+            input_mint: swap.input_mint().clone(),
+            output_mint: swap.output_mint().clone(),
         };
         if swap_pair != pair || (swap.outer_program() != &outer_program && check_wrapper) {
             return None;
@@ -97,11 +97,11 @@ fn pair_from_swaps(swaps: &Vec<&SwapV2>, check_wrapper: bool) -> Option<(Option<
 }
 
 impl SandwichCandidate {
-    pub fn new(frontrun: Vec<&SwapV2>, victim: Vec<&SwapV2>, backrun: Vec<&SwapV2>, transfers: &Vec<TransferV2>, txs: &Vec<TransactionV2>) -> Result<Self, SandwichError> {
+    pub fn new(frontrun: &[SwapV2], victim: &[SwapV2], backrun: &[SwapV2], transfers: &[TransferV2], txs: &[TransactionV2]) -> Result<Self, SandwichError> {
         // Sanity checks
         // {Front/back}run directions check - all frontrun swaps has the same pair and the reverse pair for the backrun swaps
-        let (frontrun_wrapper, frontrun_pair) = pair_from_swaps(&frontrun, true).ok_or(SandwichError::InvalidFrontrun)?;
-        let (backrun_wrapper, backrun_pair) = pair_from_swaps(&backrun, true).ok_or(SandwichError::InvalidBackrun)?;
+        let (frontrun_wrapper, frontrun_pair) = pair_from_swaps(frontrun, true).ok_or(SandwichError::InvalidFrontrun)?;
+        let (backrun_wrapper, backrun_pair) = pair_from_swaps(backrun, true).ok_or(SandwichError::InvalidBackrun)?;
         // println!("Frontrun pair: {:?}, Backrun pair: {:?}, Frontrun reversed: {:?}", frontrun_pair, backrun_pair, frontrun_pair.reverse());
         (frontrun_pair.reverse() == backrun_pair).then_some(()).ok_or(SandwichError::FrontrunBackrunPairMismatch)?;
         // Wrapper program check - both must have a non-null outer wrapper program and they must match
@@ -109,7 +109,7 @@ impl SandwichCandidate {
         (frontrun_wrapper.is_some() && backrun_wrapper.is_some()).then_some(()).ok_or(SandwichError::MissingWrapperProgram)?;
         (frontrun_wrapper == backrun_wrapper).then_some(()).ok_or(SandwichError::FrontrunBackrunWrapperMismatch)?;
         // Victim direction check - must share the same direction as the frontrun
-        let (_, victim_pair) = pair_from_swaps(&victim, false).ok_or(SandwichError::InvalidVictim)?;
+        let (_, victim_pair) = pair_from_swaps(victim, false).ok_or(SandwichError::InvalidVictim)?;
         (victim_pair == frontrun_pair).then_some(()).ok_or(SandwichError::InvalidVictim)?;
         // Profitability check
         let frontrun_spent = frontrun.iter().map(|s| s.input_amount()).sum::<u64>();
@@ -132,10 +132,10 @@ impl SandwichCandidate {
             backrun.iter().map(|b| (b.slot(), b.inclusion_order())).collect::<Vec<_>>(),
         ].concat();
         Ok(Self {
-            frontrun: frontrun.into_iter().cloned().collect(),
-            victim: victim.into_iter().cloned().collect(),
-            backrun: backrun.into_iter().cloned().collect(),
-            transfers: transfers,
+            frontrun: Arc::from(frontrun),
+            victim: Arc::from(victim),
+            backrun: Arc::from(backrun),
+            transfers: transfers.into(),
             txs: txs.iter().filter(|tx| tx_orders.contains(&(tx.slot(), tx.inclusion_order())) ).cloned().collect(),
         })
     }
