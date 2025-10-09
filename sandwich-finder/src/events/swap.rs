@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use derive_getters::Getters;
 use serde::Serialize;
@@ -11,22 +11,22 @@ use crate::events::common::Timestamp;
 #[serde(rename_all = "camelCase")]
 pub struct SwapV2 {
     // The wrapper program for this swap, if any
-    outer_program: Option<String>,
+    outer_program: Option<Arc<str>>,
     // The actual AMM program
-    program: String,
+    program: Arc<str>,
     // Wallet that authorised the swap
-    authority: String,
+    authority: Arc<str>,
     // The AMM used for this trade
-    amm: String,
+    amm: Arc<str>,
     // In/out mints of the swap
-    input_mint: String,
-    output_mint: String,
+    input_mint: Arc<str>,
+    output_mint: Arc<str>,
     // In/out amounts of the swap
     input_amount: u64,
     output_amount: u64,
     // In/out token accounts
-    input_ata: String,
-    output_ata: String,
+    input_ata: Arc<str>,
+    output_ata: Arc<str>,
     // In/out inner ix indexes
     input_inner_ix_index: Option<u32>,
     output_inner_ix_index: Option<u32>,
@@ -36,16 +36,16 @@ pub struct SwapV2 {
 
 impl SwapV2 {
     pub fn new(
-        outer_program: Option<String>,
-        program: String,
-        authority: String,
-        amm: String,
-        input_mint: String,
-        output_mint: String,
+        outer_program: Option<Arc<str>>,
+        program: Arc<str>,
+        authority: Arc<str>,
+        amm: Arc<str>,
+        input_mint: Arc<str>,
+        output_mint: Arc<str>,
         input_amount: u64,
         output_amount: u64,
-        input_ata: String,
-        output_ata: String,
+        input_ata: Arc<str>,
+        output_ata: Arc<str>,
         input_inner_ix_index: Option<u32>,
         output_inner_ix_index: Option<u32>,
         slot: u64,

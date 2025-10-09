@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta};
 
@@ -40,7 +42,7 @@ impl SugarSwapFinder {
         }
     }
 
-    fn swap_from_pdf_trade_event(outer_program: Option<String>, amm: Pubkey, input_ata: Pubkey, output_ata: Pubkey, data: &[u8], inner_ix_index: Option<u32>) -> SwapV2 {
+    fn swap_from_pdf_trade_event(outer_program: Option<Arc<str>>, amm: Pubkey, input_ata: Pubkey, output_ata: Pubkey, data: &[u8], inner_ix_index: Option<u32>) -> SwapV2 {
         let mint = pubkey_from_slice(&data[16..48]);
         let sol_amount = u64::from_le_bytes(data[48..56].try_into().unwrap());
         let token_amount = u64::from_le_bytes(data[56..64].try_into().unwrap());
@@ -64,15 +66,15 @@ impl SugarSwapFinder {
         };
         SwapV2::new(
             outer_program,
-            SUGAR_PUBKEY.to_string(),
-            pubkey_from_slice(&data[65..97]).to_string(),
-            amm.to_string(),
-            input_mint.to_string(),
-            output_mint.to_string(),
+            SUGAR_PUBKEY.to_string().into(),
+            pubkey_from_slice(&data[65..97]).to_string().into(),
+            amm.to_string().into(),
+            input_mint.to_string().into(),
+            output_mint.to_string().into(),
             input_amount,
             output_amount,
-            input_ata.to_string(),
-            output_ata.to_string(),
+            input_ata.to_string().into(),
+            output_ata.to_string().into(),
             // todo: should try to locate the actual ix
             None,
             None,
@@ -172,7 +174,7 @@ impl SwapFinder for SugarSwapFinder {
                             continue; // Not an event
                         }
                         swaps.push(Self::swap_from_pdf_trade_event(
-                            Some(ix.program_id.to_string()),
+                            Some(ix.program_id.to_string().into()),
                             Self::amm_inner_ix(inner_ix, account_keys),
                             input_ata,
                             output_ata,

@@ -28,12 +28,12 @@ impl TransferFinder for SystemProgramTransferfinder {
                 }
                 return vec![TransferV2::new(
                     None,
-                    SYSTEM_PROGRAM_ID.to_string(),
-                    ix.accounts[0].pubkey.to_string(),
-                    WSOL_MINT.to_string(),
+                    SYSTEM_PROGRAM_ID.to_string().into(),
+                    ix.accounts[0].pubkey.to_string().into(),
+                    WSOL_MINT.to_string().into(),
                     amount,
-                    ix.accounts[0].pubkey.to_string(),
-                    ix.accounts[1].pubkey.to_string(),
+                    ix.accounts[0].pubkey.to_string().into(),
+                    ix.accounts[1].pubkey.to_string().into(),
                     0,
                     0,
                     0,
@@ -64,13 +64,13 @@ impl TransferFinder for SystemProgramTransferfinder {
                     return;
                 }
                 transfers.push(TransferV2::new(
-                    Some(ix.program_id.to_string()),
-                    SYSTEM_PROGRAM_ID.to_string(),
-                    account_keys[from].to_string(),
-                    WSOL_MINT.to_string(),
+                    Some(ix.program_id.to_string().into()),
+                    SYSTEM_PROGRAM_ID.to_string().into(),
+                    account_keys[from].to_string().into(),
+                    WSOL_MINT.to_string().into(),
                     amount,
-                    account_keys[from].to_string(),
-                    account_keys[to].to_string(),
+                    account_keys[from].to_string().into(),
+                    account_keys[to].to_string().into(),
                     0,
                     0,
                     0,

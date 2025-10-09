@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use derive_getters::Getters;
 use serde::Serialize;
@@ -11,18 +11,18 @@ use crate::events::common::Timestamp;
 #[serde(rename_all = "camelCase")]
 pub struct TransferV2 {
     // The wrapper program for this transfer, if any
-    outer_program: Option<String>,
+    outer_program: Option<Arc<str>>,
     // The actual token/system program
-    program: String,
+    program: Arc<str>,
     // Wallet that authorised the transfer
-    authority: String,
+    authority: Arc<str>,
     // Mint of the token transferred
-    mint: String,
+    mint: Arc<str>,
     // Amounts of the transfer
     amount: u64,
     // In/out token accounts
-    input_ata: String,
-    output_ata: String,
+    input_ata: Arc<str>,
+    output_ata: Arc<str>,
     // These fields are meant to be replaced when inserting to the db
     timestamp: Timestamp,
 }
@@ -44,13 +44,13 @@ impl Debug for TransferV2 {
 
 impl TransferV2 {
     pub fn new(
-        outer_program: Option<String>,
-        program: String,
-        authority: String,
-        mint: String,
+        outer_program: Option<Arc<str>>,
+        program: Arc<str>,
+        authority: Arc<str>,
+        mint: Arc<str>,
         amount: u64,
-        input_ata: String,
-        output_ata: String,
+        input_ata: Arc<str>,
+        output_ata: Arc<str>,
         slot: u64,
         inclusion_order: u32,
         ix_index: u32,

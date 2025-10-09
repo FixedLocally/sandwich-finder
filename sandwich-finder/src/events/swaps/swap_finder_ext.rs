@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use debug_print::debug_println;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::{geyser::SubscribeUpdateTransactionInfo, prelude::{InnerInstructions, TransactionStatusMeta}};
@@ -86,15 +88,15 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             return vec![
                 SwapV2::new(
                     None,
-                    ix.program_id.to_string(),
-                    authority,
-                    Self::amm_ix(ix).to_string(),
-                    input_mint.unwrap_or_default(),
-                    output_mint.unwrap_or_default(),
+                    ix.program_id.to_string().into(),
+                    authority.into(),
+                    Self::amm_ix(ix).to_string().into(),
+                    input_mint.unwrap_or_default().into(),
+                    output_mint.unwrap_or_default().into(),
                     input_amount,
                     output_amount,
-                    input_ata.to_string(),
-                    output_ata.to_string(),
+                    input_ata.to_string().into(),
+                    output_ata.to_string().into(),
                     input_index,
                     output_index,
                     0,
@@ -132,7 +134,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             let mut output_mint = None;
             let mut input_index = None;
             let mut output_index = None;
-            let mut authority = "".to_string();
+            let mut authority: Arc<str> = "".into();
             let (input_ata, output_ata) = Self::user_ata_inner_ix(inner_ix, account_keys);
             let (pool_input_ata, pool_output_ata) = Self::pool_ata_inner_ix(inner_ix, account_keys);
             debug_println!("{} -> {} (pool: {} -> {})", input_ata, output_ata, pool_input_ata, pool_output_ata);
@@ -150,7 +152,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                         input_mint = Some(mint);
                         input_amount = amount;
                         input_index = Some(j as u32);
-                        authority = auth.to_string();
+                        authority = auth.to_string().into();
                     } else if to == output_ata && (from == pool_input_ata || pool_input_ata == Pubkey::default()) {
                         output_mint = Some(mint);
                         output_amount = amount;
@@ -160,16 +162,16 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                 if input_mint.is_some() && output_mint.is_some() {
                     // Found both input and output mints
                     swaps.push(SwapV2::new(
-                        Some(ix.program_id.to_string()),
-                        program_id.to_string(),
+                        Some(ix.program_id.to_string().into()),
+                        program_id.to_string().into(),
                         authority,
-                        Self::amm_inner_ix(inner_ix, account_keys).to_string(),
-                        input_mint.clone().unwrap(),
-                        output_mint.clone().unwrap(),
+                        Self::amm_inner_ix(inner_ix, account_keys).to_string().into(),
+                        input_mint.clone().unwrap().into(),
+                        output_mint.clone().unwrap().into(),
                         input_amount,
                         output_amount,
-                        input_ata.to_string(),
-                        output_ata.to_string(),
+                        input_ata.to_string().into(),
+                        output_ata.to_string().into(),
                         input_index,
                         output_index,
                         0,
@@ -183,16 +185,16 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
             }
             // Still push in case we can't find one of the legs - rounded to zero or bug somewhere?
             swaps.push(SwapV2::new(
-                Some(ix.program_id.to_string()),
-                program_id.to_string(),
+                Some(ix.program_id.to_string().into()),
+                program_id.to_string().into(),
                 authority,
-                Self::amm_inner_ix(inner_ix, account_keys).to_string(),
-                input_mint.clone().unwrap_or_default(),
-                output_mint.clone().unwrap_or_default(),
+                Self::amm_inner_ix(inner_ix, account_keys).to_string().into(),
+                input_mint.clone().unwrap_or_default().into(),
+                output_mint.clone().unwrap_or_default().into(),
                 input_amount,
                 output_amount,
-                input_ata.to_string(),
-                output_ata.to_string(),
+                input_ata.to_string().into(),
+                output_ata.to_string().into(),
                 input_index,
                 output_index,
                 0,

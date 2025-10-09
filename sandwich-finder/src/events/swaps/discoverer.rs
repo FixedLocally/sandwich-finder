@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::prelude::{InnerInstruction, InnerInstructions, TransactionStatusMeta};
@@ -69,8 +69,9 @@ impl SwapFinder for Discoverer {
                     }
                 }
                 if transfer_count >= 2 && authorities.len() >= 2 && mints.len() >= 2 {
+                    let empty_str: Arc<str> = Arc::from("");
                     return vec![
-                        SwapV2::new(None, ix.program_id.to_string(), "".to_string(), "".to_string(), "".to_string(), "".to_string(), 0, 0, "".to_string(), "".to_string(), None, None, 0, 0, 0, None),
+                        SwapV2::new(None, ix.program_id.to_string().into(), empty_str.clone(), empty_str.clone(), empty_str.clone(), empty_str.clone(), 0, 0, empty_str.clone(), empty_str, None, None, 0, 0, 0, None),
                     ];
                 }
                 vec![]

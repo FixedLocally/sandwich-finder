@@ -50,16 +50,16 @@ impl PumpFunSwapFinder {
             (token_amount, sol_amount - fee - creator_fee)
         };
         SwapV2::new(
-            outer_program,
-            PDF_PUBKEY.to_string(),
-            pubkey_from_slice(&data[65..97]).to_string(),
-            amm.to_string(),
-            input_mint.to_string(),
-            output_mint.to_string(),
+            outer_program.map(|s| s.into()),
+            PDF_PUBKEY.to_string().into(),
+            pubkey_from_slice(&data[65..97]).to_string().into(),
+            amm.to_string().into(),
+            input_mint.to_string().into(),
+            output_mint.to_string().into(),
             input_amount,
             output_amount,
-            input_ata.to_string(),
-            output_ata.to_string(),
+            input_ata.to_string().into(),
+            output_ata.to_string().into(),
             // todo: should try to locate the actual ix
             None,
             None,

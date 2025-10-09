@@ -148,7 +148,7 @@ pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receive
                                 tx_events.push(Event::Transaction(TransactionV2::new(
                                     slot,
                                     tx.0.index as u32,
-                                    bs58::encode(&tx.0.signature).into_string(),
+                                    bs58::encode(&tx.0.signature).into_string().into(),
                                     meta.fee,
                                     meta.compute_units_consumed.unwrap_or(0),
                                 )));
@@ -156,7 +156,7 @@ pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receive
                                 tx_events.push(Event::Transaction(TransactionV2::new(
                                     slot,
                                     tx.0.index as u32,
-                                    bs58::encode(&tx.0.signature).into_string(),
+                                    bs58::encode(&tx.0.signature).into_string().into(),
                                     0,
                                     0,
                                 )));

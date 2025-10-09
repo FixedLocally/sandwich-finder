@@ -48,12 +48,12 @@ impl TransferFinder for TokenProgramTransferFinder {
                         if let Some(mint) = mint {
                             return vec![TransferV2::new(
                                 None,
-                                ix.program_id.to_string(),
-                                auth.to_string(),
-                                mint,
+                                ix.program_id.to_string().into(),
+                                auth.to_string().into(),
+                                mint.into(),
                                 amount,
-                                from_ata.to_string(),
-                                to_ata.to_string(),
+                                from_ata.to_string().into(),
+                                to_ata.to_string().into(),
                                 0, // slot to be filled later
                                 0, // inclusion_order to be filled later
                                 0, // ix_index to be filled later
@@ -95,13 +95,13 @@ impl TransferFinder for TokenProgramTransferFinder {
                             .or_else(|| mint_of(&to_ata_pubkey, account_keys, meta));
                         if let Some(mint) = mint {
                             transfers.push(TransferV2::new(
-                                Some(ix.program_id.to_string()),
-                                account_keys[inner_ix.program_id_index as usize].to_string(),
-                                auth_pubkey.to_string(),
-                                mint,
+                                Some(ix.program_id.to_string().into()),
+                                account_keys[inner_ix.program_id_index as usize].to_string().into(),
+                                auth_pubkey.to_string().into(),
+                                mint.into(),
                                 amount,
-                                from_ata_pubkey.to_string(),
-                                to_ata_pubkey.to_string(),
+                                from_ata_pubkey.to_string().into(),
+                                to_ata_pubkey.to_string().into(),
                                 0, // slot to be filled later
                                 0, // inclusion_order to be filled later
                                 0, // ix_index to be filled later
