@@ -1,3 +1,5 @@
+use std::u64;
+
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::prelude::{InnerInstructions, TransactionStatusMeta};
 
@@ -12,19 +14,24 @@ impl TokenProgramTransferFinder {
     }
 
     fn amount_from_data(data: &[u8]) -> Option<u64> {
-        if data.len() < 9 {
-            return None;
+        match data[0] {
+            3 => Some(u64::from_le_bytes(data[1..9].try_into().unwrap())), // Transfer
+            7 => Some(u64::from_le_bytes(data[1..9].try_into().unwrap())), // MintTo
+            9 => Some(u64::MAX), // CloseAccount, amount is not specified unless we replay the entire tx
+            12 => Some(u64::from_le_bytes(data[1..9].try_into().unwrap())), // TransferChecked
+            14 => Some(u64::from_le_bytes(data[1..9].try_into().unwrap())), // MintToChecked
+            _ => return None, // Not something that resembles a transfer
         }
-        if data[0] != 3 && data[0] != 12 {
-            return None; // Not a transfer
-        }
-        Some(u64::from_le_bytes(data[1..9].try_into().unwrap()))
     }
 
+    /// Returns (from_index, to_index, auth_index)
     fn from_to_indexs(data: &[u8]) -> Option<(usize, usize, usize)> {
         match data[0] {
             3 => Some((0, 1, 2)), // Transfer
+            7 => Some((0, 1, 2)), // MintTo, tokens are minted so we specify the mint as the "from"
+            9 => Some((0, 1, 2)), // CloseAccount
             12 => Some((0, 2, 3)), // TransferChecked
+            14 => Some((0, 1, 2)), // MintToChecked
             _ => None, // Not a transfer
         }
     }
