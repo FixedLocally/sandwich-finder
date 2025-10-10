@@ -23,7 +23,7 @@ pub enum SandwichError {
     #[error("Transfers don't connect frontrun output ATAs to backrun input ATAs entirely")]
     InvalidTransfers,
     #[error("The sandwich is not strictly profitable")]
-    NonProfitable,
+    NonProfitable(i128, i128),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Getters)]
@@ -116,11 +116,13 @@ impl SandwichCandidate {
         // Victim wrapper check - must not share the same wrapper program as the frontrun/backrun unless it's None
         victim.iter().all(|s| s.outer_program().is_none() || s.outer_program() != &frontrun_wrapper).then_some(()).ok_or(SandwichError::InvalidVictim)?;
         // Profitability check
-        let frontrun_spent = frontrun.iter().map(|s| s.input_amount()).sum::<u64>();
-        let frontrun_received = frontrun.iter().map(|s| s.output_amount()).sum::<u64>();
-        let backrun_spent = backrun.iter().map(|s| s.input_amount()).sum::<u64>();
-        let backrun_received = backrun.iter().map(|s| s.output_amount()).sum::<u64>();
-        (frontrun_received >= backrun_spent && backrun_received >= frontrun_spent).then_some(()).ok_or(SandwichError::NonProfitable)?;
+        let frontrun_spent = frontrun.iter().map(|s| *s.input_amount() as i128).sum::<i128>();
+        let frontrun_received = frontrun.iter().map(|s| *s.output_amount() as i128).sum::<i128>();
+        let backrun_spent = backrun.iter().map(|s| *s.input_amount() as i128).sum::<i128>();
+        let backrun_received = backrun.iter().map(|s| *s.output_amount() as i128).sum::<i128>();
+        let profit_a = backrun_received.saturating_sub(frontrun_spent);
+        let profit_b = frontrun_received.saturating_sub(backrun_spent);
+        (profit_a >= 0 && profit_b >= 0).then_some(()).ok_or(SandwichError::NonProfitable(profit_a, profit_b))?;
         // Transfers check - frontrun output ATAs must match backrun input ATAs either directly or with transfers
         let mut frontrun_set = frontrun.iter().map(|s| s.output_ata()).collect::<HashSet<_>>();
         let mut backrun_set = backrun.iter().map(|s| s.input_ata()).collect::<HashSet<_>>();
@@ -199,11 +201,22 @@ pub fn detect(swaps: &[SwapV2], transfers: &[TransferV2], txs: &[TransactionV2])
             }
             if let Some(after_swaps) = after_outer.get(k) {
                 // loop thru all possible contiguous segments of before_swaps and after_swaps and try to contruct a sandwich out of them
+                // pruning condition #1
+                // notice that in the n loop, the amounts of token A spent and token B received from the frontruns are fixed since we already chose the set of frontruns
+                // as n increases, we'll only be spending more token B and receiving more token A in the backruns
+                // which means as soon as the profit for token B becomes negative, we can break out of the n loop as it's guaranteed to become even more negative
+                // in some cases we'll break out of the n loop much earlier than reaching the end
+                // pruning condition #2
+                // also notice that, when we've reached the end of the n loop, incrementing m further will result in receiving less token A in the backruns
+                // which means, if we're at the end of the n loop, and the profit for token A is negative, we can break out of the m loop as well and try the next (i, j)
+                // pruning condition #3
+                // further notice that, when we've reached (m, n) = (0, br.len()), removing any backrun will decrease the profit in token A
+                // adding another frontrun will further decrease the profit in token A by spending more, so we can break out of the j loop if the profit of token A is negative
                 // println!("Looking at outer program {:?} {} {}", k, before_swaps.len(), after_swaps.len());
                 for i in 0..before_swaps.len() {
-                    for j in i+1..=before_swaps.len() {
-                        for m in 0..after_swaps.len() {
-                            for n in m+1..=after_swaps.len() {
+                    'j: for j in i+1..=before_swaps.len() {
+                        'm: for m in 0..after_swaps.len() {
+                            'n: for n in m+1..=after_swaps.len() {
                                 let frontrun = &before_swaps[i..j];
                                 let frontrun_last = before_swaps[j - 1].clone();
                                 let backrun = &after_swaps[m..n];
@@ -214,6 +227,21 @@ pub fn detect(swaps: &[SwapV2], transfers: &[TransferV2], txs: &[TransactionV2])
                                         candidates.push(sandwich);
                                         victim.iter().for_each(|s| { matched_timestamps.insert(*s.timestamp()); });
                                     }
+                                    Err(SandwichError::NonProfitable(profit_a, profit_b)) => {
+                                        // println!("Failed to create sandwich candidate: {},{},{},{} {},{}", i,j,m,n,profit_a,profit_b);
+                                        if profit_b < 0 {
+                                            // println!("prune #1");
+                                            break 'n; // break out of n loop - pruning condition #1
+                                        }
+                                        if n == after_swaps.len() && profit_a < 0 {
+                                            // println!("prune #2");
+                                            break 'm; // break out of m loop - pruning condition #2
+                                        }
+                                        if n == after_swaps.len() && m == 0 && profit_a < 0 {
+                                            // println!("prune #3");
+                                            break 'j; // break out of j loop - pruning condition #3
+                                        }
+                                    },
                                     // Err(e) => println!("Failed to create sandwich candidate: {},{},{},{} {:?}", i,j,m,n,e),
                                     Err(_) => {},
                                 }
@@ -229,6 +257,7 @@ pub fn detect(swaps: &[SwapV2], transfers: &[TransferV2], txs: &[TransactionV2])
             sandwiches.push(candidates.last().unwrap().clone());
         }
     }
+    println!("Sandwiches {:#?}", sandwiches);
 
     sandwiches.into()
 }
