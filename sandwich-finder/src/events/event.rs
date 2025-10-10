@@ -131,12 +131,8 @@ pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receive
                         ].concat().into_iter().map(|t| Event::Transfer(t)).collect();
                         if swaps.is_empty() {
                             let swaps = Discoverer::find_swaps_in_tx(slot, tx.0, &tx.1, &tx.2);
-                            if swaps.is_empty() {
-                                return;
-                            }
                             println!("[Discoverer] tx {} ix #{} in slot {} triggered program {}", bs58::encode(&tx.0.signature).into_string(), swaps[0].ix_index(), slot, swaps[0].program());
                             debug_println!("{:?}", &tx);
-                            return;
                         }
                         let mut tx_events = swaps;
                         tx_events.extend(transfers);
