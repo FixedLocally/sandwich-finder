@@ -1,4 +1,4 @@
-use solana_sdk::pubkey::Pubkey;
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 use yellowstone_grpc_proto::prelude::{InnerInstructions, TransactionStatusMeta};
 
 use crate::events::{addresses::{SYSTEM_PROGRAM_ID, WSOL_MINT}, transfer::{TransferFinder, TransferV2}, transfers::private::Sealed};
@@ -28,7 +28,7 @@ impl SystemProgramTransferfinder {
 }
 
 impl TransferFinder for SystemProgramTransferfinder {
-    fn find_transfers(ix: &solana_sdk::instruction::Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, _meta: &TransactionStatusMeta) -> Vec<TransferV2> {
+    fn find_transfers(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, _meta: &TransactionStatusMeta) -> Vec<TransferV2> {
         if ix.program_id == SYSTEM_PROGRAM_ID {
             if let Some((to, amount)) = Self::amount_and_dest_from_data(&ix.data) {
                 if ix.accounts.len() < 2 {

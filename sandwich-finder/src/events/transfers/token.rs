@@ -1,6 +1,6 @@
 use std::u64;
 
-use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+use solana_sdk::{instruction::Instruction, native_token::LAMPORTS_PER_SOL, pubkey::Pubkey};
 use yellowstone_grpc_proto::prelude::{InnerInstructions, TransactionStatusMeta};
 
 use crate::events::{addresses::{TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID}, swaps::utils::mint_of, transfer::{TransferFinder, TransferV2}, transfers::private::Sealed};
@@ -17,7 +17,7 @@ impl TokenProgramTransferFinder {
         match data[0] {
             3 => Some(u64::from_le_bytes(data[1..9].try_into().unwrap())), // Transfer
             7 => Some(u64::from_le_bytes(data[1..9].try_into().unwrap())), // MintTo
-            9 => Some(u64::MAX), // CloseAccount, amount is not specified unless we replay the entire tx
+            9 => Some(1_000_000_000 * LAMPORTS_PER_SOL), // CloseAccount, amount is not specified unless we replay the entire tx
             12 => Some(u64::from_le_bytes(data[1..9].try_into().unwrap())), // TransferChecked
             14 => Some(u64::from_le_bytes(data[1..9].try_into().unwrap())), // MintToChecked
             _ => return None, // Not something that resembles a transfer
