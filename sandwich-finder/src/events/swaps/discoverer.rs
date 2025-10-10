@@ -71,7 +71,7 @@ impl SwapFinder for Discoverer {
                 if transfer_count >= 2 && authorities.len() >= 2 && mints.len() >= 2 {
                     let empty_str: Arc<str> = Arc::from("");
                     return vec![
-                        SwapV2::new(None, ix.program_id.to_string().into(), empty_str.clone(), empty_str.clone(), empty_str.clone(), empty_str.clone(), 0, 0, empty_str.clone(), empty_str, None, None, 0, 0, 0, None),
+                        SwapV2::new(None, ix.program_id.to_string().into(), empty_str.clone(), empty_str.clone(), empty_str.clone(), empty_str.clone(), 0, 0, empty_str.clone(), empty_str, None, None, 0, 0, 0, None, 0),
                     ];
                 }
                 vec![]

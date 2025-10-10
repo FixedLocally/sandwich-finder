@@ -39,6 +39,7 @@ impl TransferFinder for StakeProgramTransferfinder {
                     0,
                     0,
                     None,
+                    0,
                 )];
             }
             return vec![];
@@ -77,6 +78,7 @@ impl TransferFinder for StakeProgramTransferfinder {
                     0,
                     0,
                     Some(i as u32),
+                    0,
                 ));
             } else {
                 return;

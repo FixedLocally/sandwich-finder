@@ -25,6 +25,7 @@ pub struct TransferV2 {
     output_ata: Arc<str>,
     // These fields are meant to be replaced when inserting to the db
     timestamp: Timestamp,
+    id: u64,
 }
 
 impl Debug for TransferV2 {
@@ -55,6 +56,7 @@ impl TransferV2 {
         inclusion_order: u32,
         ix_index: u32,
         inner_ix_index: Option<u32>,
+        id: u64,
     ) -> Self {
         Self {
             outer_program,
@@ -70,6 +72,7 @@ impl TransferV2 {
                 ix_index,
                 inner_ix_index,
             ),
+            id,
         }
     }
 

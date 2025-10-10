@@ -32,6 +32,7 @@ impl<T: TransferFinder + private::Sealed> TransferFinderExt for T {
                         raw_tx.index as u32,
                         i as u32,
                         *transfer.inner_ix_index(),
+                        *transfer.id(),
                     );
                     transfers.push(transfer);
                 });

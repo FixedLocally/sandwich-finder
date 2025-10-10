@@ -64,7 +64,8 @@ impl TransferFinder for TokenProgramTransferFinder {
                                 0, // slot to be filled later
                                 0, // inclusion_order to be filled later
                                 0, // ix_index to be filled later
-                                None, // inner_ix_index to be filled later
+                                None,
+                                0,
                             )];
                         }
                     }
@@ -112,7 +113,8 @@ impl TransferFinder for TokenProgramTransferFinder {
                                 0, // slot to be filled later
                                 0, // inclusion_order to be filled later
                                 0, // ix_index to be filled later
-                                Some(i as u32), // inner_ix_index to be filled later
+                                Some(i as u32),
+                                0,
                             ));
                         }
                     }

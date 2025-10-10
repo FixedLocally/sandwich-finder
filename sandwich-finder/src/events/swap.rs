@@ -32,6 +32,7 @@ pub struct SwapV2 {
     output_inner_ix_index: Option<u32>,
     // These fields are meant to be replaced when inserting to the db
     timestamp: Timestamp,
+    id: u64,
 }
 
 impl SwapV2 {
@@ -52,6 +53,7 @@ impl SwapV2 {
         inclusion_order: u32,
         ix_index: u32,
         inner_ix_index: Option<u32>,
+        id: u64,
     ) -> Self {
         Self {
             outer_program,
@@ -72,6 +74,7 @@ impl SwapV2 {
                 ix_index,
                 inner_ix_index,
             ),
+            id,
         }
     }
 
@@ -93,6 +96,9 @@ impl Debug for SwapV2 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // f.debug_struct("SwapV2").field("outer_program", &self.outer_program).field("program", &self.program).field("amm", &self.amm).field("input_mint", &self.input_mint).field("output_mint", &self.output_mint).field("input_amount", &self.input_amount).field("output_amount", &self.output_amount).field("input_ata", &self.input_ata).field("output_ata", &self.output_ata).field("sig_id", &self.sig_id).field("slot", &self.slot).field("inclusion_order", &self.inclusion_order).field("ix_index", &self.ix_index).field("inner_ix_index", &self.inner_ix_index).finish()
         f.write_str("Swap")?;
+        if self.id != 0 {
+            f.write_str(&format!(" #{}", self.id))?;
+        }
         f.write_str(&format!(" in slot {} (order {}, ix {}, inner_ix {:?})\n", self.slot(), self.inclusion_order(), self.ix_index(), self.inner_ix_index()))?;
         if let Some(outer_program) = &self.outer_program {
             f.write_str(&format!(" via {}\n", outer_program))?;

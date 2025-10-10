@@ -103,6 +103,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                     0,
                     0,
                     None,
+                    0,
                 )
             ];
         }
@@ -178,6 +179,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                         0,
                         0,
                         Some(i as u32),
+                        0,
                     ));
                     next_logical_ix = j + 1;
                     return;
@@ -201,6 +203,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                 0,
                 0,
                 Some(i as u32),
+                0,
             ));
         });
         swaps
@@ -230,6 +233,7 @@ impl<T: SwapFinder + private::Sealed> SwapFinderExt for T {
                             raw_tx.index as u32,
                             i as u32,
                             *swap.inner_ix_index(),
+                            0,
                         );
                         swaps.push(swap);
                     });
