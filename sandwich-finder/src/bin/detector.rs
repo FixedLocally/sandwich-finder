@@ -121,7 +121,11 @@ fn detect_main(swaps: &[SwapV2], transfers: &[TransferV2], txs: &[TransactionV2]
     }
 
     // for each swap, we want to match it with a series of swaps before it in the same direction and a series of swaps after it in the opposite direction
+    let mut matched_timestamps = HashMap::new(); // to avoid double counting
     for swap in swaps.iter() {
+        if matched_timestamps.contains_key(swap.timestamp()) {
+            continue;
+        }
         let pair = TradePair::new(
             swap.amm().clone(),
             swap.input_mint().clone(),
@@ -171,6 +175,7 @@ fn detect_main(swaps: &[SwapV2], transfers: &[TransferV2], txs: &[TransactionV2]
                                 let victim = &swaps.iter().filter(|s| s.timestamp() > frontrun_last.timestamp() && s.timestamp() < backrun_first.timestamp() && s.amm() == swap.amm() && s.input_mint() == swap.input_mint() && s.output_mint() == swap.output_mint()).cloned().collect::<Vec<_>>()[..];
                                 if let Ok(sandwich) = SandwichCandidate::new(frontrun, victim, backrun, &transfers, &txs) {
                                     println!("Found sandwich {:?}", sandwich);
+                                    victim.iter().for_each(|s| { matched_timestamps.insert(*s.timestamp(), ()); });
                                 }
                             }
                         }
