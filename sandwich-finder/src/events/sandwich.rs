@@ -17,7 +17,7 @@ pub enum SandwichError {
     FrontrunBackrunPairMismatch,
     #[error("Frontrun and backrun swaps don't use the same the same wrapper program")]
     FrontrunBackrunWrapperMismatch,
-    #[error("Victim swaps don't share the same AMM+direction as the frontrun")]
+    #[error("Victim swaps don't share the same AMM+direction as the frontrun or share a wrapper program with the frontrun/backrun")]
     InvalidVictim,
     #[error("Transfers don't connect frontrun output ATAs to backrun input ATAs entirely")]
     InvalidTransfers,
@@ -63,7 +63,8 @@ impl TradePair {
 /// And obviously, the swapping steps must use the same AMM.
 /// To reduce false positives, steps 1 and 5 must use the same non null non well-known aggregator outer program,
 /// the justification being well-known aggregators aren't designed for sandwichers to keep track of their tokens across txs.
-#[derive(Debug)]
+/// Victim swaps also can't use the same wrapper program as the frontrun/backrun swaps.
+#[derive(Debug, Getters)]
 pub struct SandwichCandidate {
     frontrun: Arc<[SwapV2]>,
     victim: Arc<[SwapV2]>,
@@ -106,11 +107,13 @@ impl SandwichCandidate {
         (frontrun_pair.reverse() == backrun_pair).then_some(()).ok_or(SandwichError::FrontrunBackrunPairMismatch)?;
         // Wrapper program check - both must have a non-null outer wrapper program and they must match
         // println!("Frontrun wrapper: {:?}, Backrun wrapper: {:?}", frontrun_wrapper, backrun_wrapper);
-        (frontrun_wrapper.is_some() && backrun_wrapper.is_some()).then_some(()).ok_or(SandwichError::MissingWrapperProgram)?;
-        (frontrun_wrapper == backrun_wrapper).then_some(()).ok_or(SandwichError::FrontrunBackrunWrapperMismatch)?;
+        // (frontrun_wrapper.is_some() && backrun_wrapper.is_some()).then_some(()).ok_or(SandwichError::MissingWrapperProgram)?;
+        // (frontrun_wrapper == backrun_wrapper).then_some(()).ok_or(SandwichError::FrontrunBackrunWrapperMismatch)?;
         // Victim direction check - must share the same direction as the frontrun
         let (_, victim_pair) = pair_from_swaps(victim, false).ok_or(SandwichError::InvalidVictim)?;
         (victim_pair == frontrun_pair).then_some(()).ok_or(SandwichError::InvalidVictim)?;
+        // Victim wrapper check - must not share the same wrapper program as the frontrun/backrun unless it's None
+        victim.iter().all(|s| s.outer_program().is_none() || s.outer_program() != &frontrun_wrapper).then_some(()).ok_or(SandwichError::InvalidVictim)?;
         // Profitability check
         let frontrun_spent = frontrun.iter().map(|s| s.input_amount()).sum::<u64>();
         let frontrun_received = frontrun.iter().map(|s| s.output_amount()).sum::<u64>();
