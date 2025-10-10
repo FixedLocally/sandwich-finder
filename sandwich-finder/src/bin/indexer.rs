@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, sync::Arc};
 
 use mysql::{prelude::Queryable, TxOpts, Value};
 use sandwich_finder::{events::event::{start_event_processor, Event}, utils::create_db_pool};
@@ -78,8 +78,10 @@ async fn indexer() {
     let pool = create_db_pool();
     let mut receiver = start_event_processor(grpc_url, rpc_url);
     println!("Started event processor");
-    while let Some(event) = receiver.recv().await {
+    let mut batches: [Option<Arc<[Event]>>; 4] = [None, None, None, None];
+    while let Some((slot, event)) = receiver.recv().await {
         println!("Received batch: {:?}", event.len());
+        batches[(slot % 4) as usize] = Some(event.clone());
         // process event here
         let mut conn = pool.get_conn().unwrap();
         tokio::spawn(async move {

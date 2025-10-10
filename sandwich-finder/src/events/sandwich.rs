@@ -105,10 +105,10 @@ impl SandwichCandidate {
         let (backrun_wrapper, backrun_pair) = pair_from_swaps(backrun, true).ok_or(SandwichError::InvalidBackrun)?;
         // println!("Frontrun pair: {:?}, Backrun pair: {:?}, Frontrun reversed: {:?}", frontrun_pair, backrun_pair, frontrun_pair.reverse());
         (frontrun_pair.reverse() == backrun_pair).then_some(()).ok_or(SandwichError::FrontrunBackrunPairMismatch)?;
-        // Wrapper program check - both must have a non-null outer wrapper program and they must match
+        // Wrapper program check - wrapper program must match
         // println!("Frontrun wrapper: {:?}, Backrun wrapper: {:?}", frontrun_wrapper, backrun_wrapper);
         // (frontrun_wrapper.is_some() && backrun_wrapper.is_some()).then_some(()).ok_or(SandwichError::MissingWrapperProgram)?;
-        // (frontrun_wrapper == backrun_wrapper).then_some(()).ok_or(SandwichError::FrontrunBackrunWrapperMismatch)?;
+        (frontrun_wrapper == backrun_wrapper).then_some(()).ok_or(SandwichError::FrontrunBackrunWrapperMismatch)?;
         // Victim direction check - must share the same direction as the frontrun
         let (_, victim_pair) = pair_from_swaps(victim, false).ok_or(SandwichError::InvalidVictim)?;
         (victim_pair == frontrun_pair).then_some(()).ok_or(SandwichError::InvalidVictim)?;

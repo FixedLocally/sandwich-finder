@@ -20,11 +20,11 @@ pub enum Event {
     Transaction(TransactionV2),
 }
 
-pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receiver<Arc<Vec<Event>>> {
+pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receiver<(u64, Arc<[Event]>)> {
     // Initialize event processing system
     let rpc_client = RpcClient::new_with_commitment(rpc_url.to_string(), CommitmentConfig::processed());
     let lut_cache = DashMap::new();
-    let (sender, receiver) = mpsc::channel::<Arc<Vec<Event>>>(100);
+    let (sender, receiver) = mpsc::channel::<_>(100);
     tokio::spawn(async move {
         println!("connecting to grpc server: {}", grpc_url);
         let mut grpc_client = GeyserGrpcBuilder{
@@ -167,7 +167,7 @@ pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receive
                     tokio::spawn({
                         let sender = sender.clone();
                         async move {
-                            let _ = sender.send(Arc::new(events)).await;
+                            let _ = sender.send((slot, events.into())).await;
                             println!("sent {} events from slot {}", event_len, slot);
                         }
                     });
