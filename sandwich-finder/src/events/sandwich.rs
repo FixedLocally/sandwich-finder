@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, sync::Arc};
+use std::{cmp::Reverse, collections::{HashMap, HashSet}, sync::Arc};
 
 use derive_getters::Getters;
 use solana_sdk::pubkey::Pubkey;
@@ -201,6 +201,26 @@ pub fn detect(swaps: &[SwapV2], transfers: &[TransferV2], txs: &[TransactionV2])
             }
             if let Some(after_swaps) = after_outer.get(k) {
                 // loop thru all possible contiguous segments of before_swaps and after_swaps and try to contruct a sandwich out of them
+                // pruning condition #0
+                // lossy optimisation - remove smaller trades if there're too many of them since we're on O(n^5) complexity here
+                // capping each leg to the 20 largest trades should be a good compromise and makes our algorithm O(n) :joy:
+                // just with a large constant coefficient :joy::joy::rofl:
+                let before_swaps = before_swaps.clone();
+                let after_swaps = after_swaps.clone();
+                let before_swaps = if before_swaps.len() > 20 {
+                    let mut v = before_swaps;
+                    v.sort_by_cached_key(|s| Reverse(*s.input_amount()));
+                    v = v.into_iter().take(20).collect::<Vec<_>>();
+                    v.sort_by_cached_key(|s| *s.timestamp());
+                    v
+                } else { before_swaps };
+                let after_swaps = if after_swaps.len() > 20 {
+                    let mut v = after_swaps;
+                    v.sort_by_cached_key(|s| Reverse(*s.input_amount()));
+                    v = v.into_iter().take(20).collect::<Vec<_>>();
+                    v.sort_by_cached_key(|s| *s.timestamp());
+                    v
+                } else { after_swaps };
                 // pruning condition #1
                 // notice that in the n loop, the amounts of token A spent and token B received from the frontruns are fixed since we already chose the set of frontruns
                 // as n increases, we'll only be spending more token B and receiving more token A in the backruns
@@ -257,7 +277,7 @@ pub fn detect(swaps: &[SwapV2], transfers: &[TransferV2], txs: &[TransactionV2])
             sandwiches.push(candidates.last().unwrap().clone());
         }
     }
-    println!("Sandwiches {:#?}", sandwiches);
+    // println!("Sandwiches {:#?}", sandwiches);
 
     sandwiches.into()
 }
