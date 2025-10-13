@@ -1,9 +1,9 @@
 use std::{collections::{HashMap, HashSet}, sync::{atomic::{AtomicU64, Ordering}, Arc}};
 
-use futures::future::join_all;
 use mysql::{prelude::Queryable, Pool, Row, Value};
 use sandwich_finder::{events::{common::Timestamp, sandwich::detect, swap::SwapV2, transaction::TransactionV2, transfer::TransferV2}, utils::create_db_pool};
 use serde::{Deserialize, Serialize};
+use tokio::task::JoinSet;
 use uuid::Uuid;
 
 const MAX_CHUNK_SIZE: u64 = 1000; // max slots to fetch at a time
@@ -140,18 +140,19 @@ async fn main() {
     let chunk_size = ((end_slot - start_slot + 1) / 16).min(MAX_CHUNK_SIZE - LEADER_GROUP_SIZE) / LEADER_GROUP_SIZE * LEADER_GROUP_SIZE + LEADER_GROUP_SIZE;
     println!("Processing slots {} to {} ({} leader groups)", start_slot, end_slot, (end_slot - start_slot + 1) / LEADER_GROUP_SIZE);
     let progress = Arc::from(AtomicU64::new(0));
-    let handles: Vec<_> = (start_slot..=end_slot).step_by(chunk_size as usize).map(|chunk_start| {
+    let mut set = JoinSet::new();
+    for chunk_start in (start_slot..=end_slot).step_by(chunk_size as usize) {
         let chunk_end = (chunk_start + chunk_size - 1).min(end_slot);
         let pool = pool.clone(); // docs said this is cloneable
         let progress = progress.clone();
-        tokio::spawn(async move {
-            // println!("Fetching events for slots {} to {}", chunk_start, chunk_end);
+        set.spawn(async move {
+            println!("Fetching events for slots {} to {}", chunk_start, chunk_end);
             let (swaps, transfers, txs) = get_events(pool.clone(), chunk_start, chunk_end).await;
             let mut swaps_start = 0;
             let mut transfers_start = 0;
             let mut txs_start = 0;
             let mut conn = pool.get_conn().unwrap();
-            for slot in (chunk_start..=chunk_end).step_by(4) {
+            for slot in (chunk_start..=chunk_end).step_by(LEADER_GROUP_SIZE as usize) {
                 let swaps_end = swaps.iter().skip(swaps_start).position(|s| *s.slot() >= slot + LEADER_GROUP_SIZE).map(|n| n + swaps_start).unwrap_or(swaps.len());
                 let transfers_end = transfers.iter().skip(transfers_start).position(|t| *t.slot() >= slot + LEADER_GROUP_SIZE).map(|n| n + transfers_start).unwrap_or(transfers.len());
                 let txs_end = txs.iter().skip(txs_start).position(|t| *t.slot() >= slot + LEADER_GROUP_SIZE).map(|n| n + txs_start).unwrap_or(txs.len());
@@ -159,7 +160,7 @@ async fn main() {
                 let slot_swaps = &swaps[swaps_start..swaps_end];
                 let slot_transfers = &transfers[transfers_start..transfers_end];
                 let slot_txs = &txs[txs_start..txs_end];
-                // println!("Processing slots {} to {}", slot, slot + LEADER_GROUP_SIZE - 1);
+                println!("Processing slots {} to {}", slot, slot + LEADER_GROUP_SIZE - 1);
                 // println!("Swaps: {:#?}", slot_swaps.len());
                 // println!("Transfers: {:#?}", slot_transfers.len());
                 // println!("Txs: {:#?}", slot_txs.len());
@@ -186,21 +187,26 @@ async fn main() {
                         s.transfers().iter().flat_map(|sw| vec![Value::from(uuid), Value::from(sw.id()), Value::from("TRANSFER")]).collect::<Vec<_>>(),
                     ].concat()
                 }).collect();
-                if !args.is_empty() {
-                    let stmt = format!("insert into sandwiches (id, event_id, role) values {}", "(?, ?, ?),".repeat(args.len() / 3));
-                    let stmt = stmt.trim_end_matches(",").to_string();
-                    conn.exec_drop(stmt, args).unwrap();
-                }
 
                 swaps_start = swaps_end;
                 transfers_start = transfers_end;
                 txs_start = txs_end;
                 let completed = progress.fetch_add(1, Ordering::AcqRel);
-                if completed % 100 == 0 {
+                // if completed % 100 == 0 {
                     println!("{}/{}", completed, (end_slot - start_slot + 1) / LEADER_GROUP_SIZE);
+                // }
+
+                if !args.is_empty() {
+                    let stmt = format!("insert into sandwiches (id, event_id, role) values {}", "(?, ?, ?),".repeat(args.len() / 3));
+                    let stmt = stmt.trim_end_matches(",").to_string();
+                    if let Err(r) = conn.exec_drop(stmt, args) {
+                        eprintln!("Failed to insert sandwiches for slots {} to {}: {}", slot, slot + LEADER_GROUP_SIZE - 1, r);
+                    }
                 }
             }
-        })
-    }).collect();
-    join_all(handles).await;
+        });
+        if set.len() >= 16 {
+            set.join_next().await;
+        }
+    }
 }
