@@ -1,6 +1,7 @@
 # Solana Sandwich Finder
 ## Overview
 This section will come back soon as v2 is getting ready!
+
 ## Preface
 Sandwiching refers to the action of forcing the earlier inclusion of a transaction (frontrun) before a transaction published earlier (victim), with another transaction after the victim transaction to realise a profit (backrun), while abusing the victim's slippage settings. We define a sandwich as "a set of transactions that include exactly one frontrun and exactly one backrun transaction, as well as at least one victim transaction", a sandwicher as "a party that sandwiches", and a colluder as "a validator that forwards transactions they receive to a sandwicher".
 
@@ -29,16 +30,18 @@ From our analysis above, we're confident that LLM can be applied to sandwicher c
 ### Sandwich identification
 A sandwich is defined by a set of transactions that satisfies all of the following:
 
-1. Has at least 3 transactions of strictly increasing inclusion order (frontrun-victims-backrun);
-2. The frontrun and the victim transactions trades in the same direction, the backrun's one is in reverse;
-3. Output of backrun >= Input of frontrun and Output of frontrun >= Input of backrun (profitability constraint);
-4. All transactions use the same AMM;
-5. Each victim transaction's signer differs from the frontrun's and the backrun's;
-6. A wrapper program is present in the frontrun and backrun and are the same;
+1. Has at least 1 transaction for frontrunning and backrunning, with at least 1 victim transaction between the frontrun and backrun.
+2. The inputs of the backrun must match the output of the frontrun, or be connected by transfers.
+3. The frontrun and the victim transactions trades in the same direction, the backrun's one is in reverse;
+4. Output of backrun >= Input of frontrun and Output of frontrun >= Input of backrun (profitability constraint);
+5. All transactions use the same AMM;
+6. Each victim transaction's signer differs from the frontrun's and the backrun's;
+7. The wrapper program in the frontrun and backrun are the same;
    
 For each sandwich identified in newly emitted blocks by the cluster, we insert that to a database for report generation.
 
 Note that we don't require the frontrun and the backrun to have the same signer as it's a valid strategy to use multiple wallets to evade detection by moving tokens across wallets.
+The "victim signer differs from attackers" and "wrapper program present" constraints were removed in v2 since pvp is fun, and we've identified sandwiches that invoke certain AMM programs directly, but the frontrun's output matches the backrun's input exactly, suggesting sandwiching intention.
 
 ### Report generation
 With the sandwich dataset, we're able to calculate the cluster wide and per validator proportion of sandwich-inclusive blocks and sandwich per block. Our hypothesis is that colluders will exhibit above cluster average values on both metrics. Due to transaction landing delays, the report generation tool also "credits" sandwiches to earlier slots.
