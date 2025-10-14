@@ -84,15 +84,13 @@ pub async fn insert_sandwiches(pool: Pool, slot: u64, sandwiches: Arc<[SandwichC
     let mut conn = pool.get_conn().unwrap();
     let args: Vec<_> = sandwiches.iter().flat_map(|s| {
         // deterministic id for each sandwich
-        let name: Vec<u8> = sandwiches.iter().flat_map(|s| {
-            [
-                s.frontrun().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
-                s.backrun().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
-                s.victim().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
-                s.transfers().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
-            ].concat()
-        }).collect();
-        println!("name {}", hex::encode(&name));
+        let name: Vec<u8> = [
+            s.frontrun().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
+            s.backrun().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
+            s.victim().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
+            s.transfers().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
+        ].concat();
+        // println!("name {}", hex::encode(&name));
         let uuid = &*Uuid::new_v5(&Uuid::NAMESPACE_DNS, &name).to_string();
         [
             s.frontrun().iter().flat_map(|sw| vec![Value::from(uuid), Value::from(sw.id()), Value::from("FRONTRUN")]).collect::<Vec<_>>(),
