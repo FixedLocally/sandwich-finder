@@ -3,8 +3,6 @@ use std::sync::Arc;
 use derive_getters::Getters;
 use serde::Serialize;
 
-
-
 #[derive(Clone, Debug, Serialize, Getters)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionV2 {
