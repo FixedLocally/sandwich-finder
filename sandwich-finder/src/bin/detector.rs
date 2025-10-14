@@ -1,10 +1,8 @@
 use std::sync::{atomic::{AtomicU64, Ordering}, Arc};
 
-use mysql::{prelude::Queryable, Value};
-use sandwich_finder::{detector::{get_events, LEADER_GROUP_SIZE}, events::sandwich::detect, utils::create_db_pool};
+use sandwich_finder::{detector::{get_events, insert_sandwiches, LEADER_GROUP_SIZE}, events::sandwich::detect, utils::create_db_pool};
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
-use uuid::Uuid;
 
 const MAX_CHUNK_SIZE: u64 = 1000; // max slots to fetch at a time
 
@@ -76,7 +74,6 @@ async fn main() {
             let mut swaps_start = 0;
             let mut transfers_start = 0;
             let mut txs_start = 0;
-            let mut conn = pool.get_conn().unwrap();
             for slot in (chunk_start..=chunk_end).step_by(LEADER_GROUP_SIZE as usize) {
                 let swaps_end = swaps.iter().skip(swaps_start).position(|s| *s.slot() >= slot + LEADER_GROUP_SIZE).map(|n| n + swaps_start).unwrap_or(swaps.len());
                 let transfers_end = transfers.iter().skip(transfers_start).position(|t| *t.slot() >= slot + LEADER_GROUP_SIZE).map(|n| n + transfers_start).unwrap_or(transfers.len());
@@ -93,23 +90,7 @@ async fn main() {
                 // for sandwich in sandwiches.iter() {
                 //     println!("Detected sandwich: {:#?}", sandwich);
                 // }
-
-                let args: Vec<_> = sandwiches.iter().flat_map(|s| {
-                    // deterministic id for each sandwich
-                    let name: Vec<u8> = [
-                        s.frontrun().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
-                        s.backrun().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
-                        s.victim().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
-                        s.transfers().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
-                    ].concat();
-                    let uuid = &*Uuid::new_v5(&Uuid::NAMESPACE_DNS, &name).to_string();
-                    [
-                        s.frontrun().iter().flat_map(|sw| vec![Value::from(uuid), Value::from(sw.id()), Value::from("FRONTRUN")]).collect::<Vec<_>>(),
-                        s.backrun().iter().flat_map(|sw| vec![Value::from(uuid), Value::from(sw.id()), Value::from("BACKRUN")]).collect::<Vec<_>>(),
-                        s.victim().iter().flat_map(|sw| vec![Value::from(uuid), Value::from(sw.id()), Value::from("VICTIM")]).collect::<Vec<_>>(),
-                        s.transfers().iter().flat_map(|sw| vec![Value::from(uuid), Value::from(sw.id()), Value::from("TRANSFER")]).collect::<Vec<_>>(),
-                    ].concat()
-                }).collect();
+                insert_sandwiches(pool.clone(), slot, sandwiches).await;
 
                 swaps_start = swaps_end;
                 transfers_start = transfers_end;
@@ -118,14 +99,6 @@ async fn main() {
                 // if completed % 100 == 0 {
                     println!("{}/{}", completed, (end_slot - start_slot + 1) / LEADER_GROUP_SIZE);
                 // }
-
-                if !args.is_empty() {
-                    let stmt = format!("insert into sandwiches (id, event_id, role) values {}", "(?, ?, ?),".repeat(args.len() / 3));
-                    let stmt = stmt.trim_end_matches(",").to_string();
-                    if let Err(r) = conn.exec_drop(stmt, &args) {
-                        eprintln!("Failed to insert sandwiches for slots {} to {}: {}", slot, slot + LEADER_GROUP_SIZE - 1, r);
-                    }
-                }
             }
         });
         if set.len() >= 16 {
