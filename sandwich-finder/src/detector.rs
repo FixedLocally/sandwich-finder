@@ -1,8 +1,7 @@
 use std::{collections::{HashMap, HashSet}, sync::Arc};
 
-use mysql::{prelude::Queryable, Pool, Row, Value};
-use uuid::Uuid;
-use crate::events::{common::Timestamp, sandwich::SandwichCandidate, swap::SwapV2, transaction::TransactionV2, transfer::TransferV2};
+use mysql::{prelude::Queryable, Pool, Row};
+use crate::events::{common::Timestamp, swap::SwapV2, transaction::TransactionV2, transfer::TransferV2};
 
 pub const LEADER_GROUP_SIZE: u64 = 4; // slots per leader group
 
@@ -78,33 +77,4 @@ pub async fn get_events(conn: Pool, start_slot: u64, end_slot: u64) -> (Vec<Swap
     txs.sort_by_cached_key(|t| Timestamp::new(*t.slot(), *t.inclusion_order(), 0, None));
 
     (swaps, transfers, txs)
-}
-
-pub async fn insert_sandwiches(pool: Pool, slot: u64, sandwiches: Arc<[SandwichCandidate]>) {
-    let mut conn = pool.get_conn().unwrap();
-    let args: Vec<_> = sandwiches.iter().flat_map(|s| {
-        // deterministic id for each sandwich
-        let name: Vec<u8> = [
-            s.frontrun().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
-            s.backrun().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
-            s.victim().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
-            s.transfers().iter().flat_map(|sw| sw.id().to_le_bytes()).collect::<Vec<_>>(),
-        ].concat();
-        // println!("name {}", hex::encode(&name));
-        let uuid = &*Uuid::new_v5(&Uuid::NAMESPACE_DNS, &name).to_string();
-        [
-            s.frontrun().iter().flat_map(|sw| vec![Value::from(uuid), Value::from(sw.id()), Value::from("FRONTRUN")]).collect::<Vec<_>>(),
-            s.backrun().iter().flat_map(|sw| vec![Value::from(uuid), Value::from(sw.id()), Value::from("BACKRUN")]).collect::<Vec<_>>(),
-            s.victim().iter().flat_map(|sw| vec![Value::from(uuid), Value::from(sw.id()), Value::from("VICTIM")]).collect::<Vec<_>>(),
-            s.transfers().iter().flat_map(|sw| vec![Value::from(uuid), Value::from(sw.id()), Value::from("TRANSFER")]).collect::<Vec<_>>(),
-        ].concat()
-    }).collect();
-    if !args.is_empty() {
-        let stmt = format!("insert into sandwiches (id, event_id, role) values {}", "(?, ?, ?),".repeat(args.len() / 3));
-        let stmt = stmt.trim_end_matches(",").to_string();
-        if let Err(r) = conn.exec_drop(stmt, args) {
-            eprintln!("Failed to insert sandwiches for slots {} to {}: {}", slot, slot + LEADER_GROUP_SIZE - 1, r);
-            eprintln!("{:?}", sandwiches);
-        }
-    }
 }

@@ -1,6 +1,6 @@
 use std::sync::{atomic::{AtomicU64, Ordering}, Arc};
 
-use sandwich_finder::{detector::{get_events, insert_sandwiches, LEADER_GROUP_SIZE}, events::sandwich::detect, utils::create_db_pool};
+use sandwich_finder::{detector::{get_events, LEADER_GROUP_SIZE}, events::{common::Inserter, sandwich::detect}, utils::create_db_pool};
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
 
@@ -60,6 +60,7 @@ async fn main() {
     let end_slot = end_slot / LEADER_GROUP_SIZE * LEADER_GROUP_SIZE + LEADER_GROUP_SIZE - 1;
     // fetch events for up to 1k slots at a time and process in groups of 4 slots
     let pool = create_db_pool();
+    let inserter = Inserter::new(pool.clone());
     let chunk_size = ((end_slot - start_slot + 1) / 16).min(MAX_CHUNK_SIZE - LEADER_GROUP_SIZE) / LEADER_GROUP_SIZE * LEADER_GROUP_SIZE + LEADER_GROUP_SIZE;
     println!("Processing slots {} to {} ({} leader groups)", start_slot, end_slot, (end_slot - start_slot + 1) / LEADER_GROUP_SIZE);
     let progress = Arc::from(AtomicU64::new(0));
@@ -67,6 +68,7 @@ async fn main() {
     for chunk_start in (start_slot..=end_slot).step_by(chunk_size as usize) {
         let chunk_end = (chunk_start + chunk_size - 1).min(end_slot);
         let pool = pool.clone(); // docs said this is cloneable
+        let mut inserter = inserter.clone();
         let progress = progress.clone();
         set.spawn(async move {
             println!("Fetching events for slots {} to {}", chunk_start, chunk_end);
@@ -90,7 +92,7 @@ async fn main() {
                 // for sandwich in sandwiches.iter() {
                 //     println!("Detected sandwich: {:#?}", sandwich);
                 // }
-                insert_sandwiches(pool.clone(), slot, sandwiches).await;
+                inserter.insert_sandwiches(slot, sandwiches).await;
 
                 swaps_start = swaps_end;
                 transfers_start = transfers_end;

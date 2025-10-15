@@ -1,7 +1,7 @@
 use std::{collections::HashMap, env};
 
 use futures::{SinkExt as _, StreamExt};
-use sandwich_finder::{detector::{get_events, insert_sandwiches, LEADER_GROUP_SIZE}, events::sandwich::detect, utils::create_db_pool};
+use sandwich_finder::{detector::{get_events, LEADER_GROUP_SIZE}, events::{common::Inserter, sandwich::detect}, utils::create_db_pool};
 use yellowstone_grpc_client::GeyserGrpcBuilder;
 use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest, SubscribeRequestFilterBlocksMeta, SubscribeRequestPing}, tonic::transport::Endpoint};
 
@@ -9,6 +9,7 @@ use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentL
 async fn main() {
     dotenv::dotenv().ok();
     let pool = create_db_pool();
+    let inserter = Inserter::new(pool.clone());
 
     let grpc_url = env::var("GRPC_URL").expect("GRPC_URL is not set");
     println!("connecting to grpc server: {}", grpc_url);
@@ -42,6 +43,7 @@ async fn main() {
                 let slot = meta.slot;
                 if meta.slot % 4 == 3 {
                     let pool = pool.clone();
+                    let mut inserter = inserter.clone();
                     tokio::spawn(async move {
                         // Intentionally lag behind slightly to ensure all events are inserted
                         let start_slot = slot - 2 * LEADER_GROUP_SIZE + 1;
@@ -50,7 +52,7 @@ async fn main() {
                         let (swaps, transfers, txs) = get_events(pool.clone(), start_slot, end_slot).await;
                         let sandwiches = detect(&swaps, &transfers, &txs);
                         println!("Found {} sandwiches in slots {} - {}", sandwiches.len(), start_slot, end_slot);
-                        insert_sandwiches(pool, start_slot, sandwiches).await;
+                        inserter.insert_sandwiches(start_slot, sandwiches).await;
                     });
                 }
             },
