@@ -100,7 +100,7 @@ impl SwapFinder for PumpFunSwapFinder {
     fn find_swaps(ix: &Instruction, inner_ixs: &InnerInstructions, account_keys: &Vec<Pubkey>, _meta: &TransactionStatusMeta) -> Vec<SwapV2> {
         if ix.program_id == PDF_PUBKEY {
             for inner_ix in inner_ixs.instructions.iter() {
-                if inner_ix.data.len() == 266 && inner_ix.data[0..16] == LOG_DISCRIMINANT[..] {
+                if inner_ix.data.len() >= 266 && inner_ix.data[0..16] == LOG_DISCRIMINANT[..] {
                     let is_buy = inner_ix.data[64] != 0;
                     let (in_index, out_index) = if is_buy {
                         (6, 5) // in sol, out token
@@ -144,7 +144,7 @@ impl SwapFinder for PumpFunSwapFinder {
                     if account_keys[next_inner_ix.program_id_index as usize] != PDF_PUBKEY {
                         continue; // Not a Pump.fun instruction
                     }
-                    if next_inner_ix.data.len() != 266 || next_inner_ix.data[0..16] != LOG_DISCRIMINANT[..] {
+                    if next_inner_ix.data.len() < 266 || next_inner_ix.data[0..16] != LOG_DISCRIMINANT[..] {
                         continue; // Not an event
                     }
                     swaps.push(Self::swap_from_pdf_trade_event(
