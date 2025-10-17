@@ -39,6 +39,7 @@ impl SwapFinder for MeteoraDammV2Finder {
         [
             // swap
             Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &METEORA_DAMMV2_PUBKEY, &[0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8], 0, 24),
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &METEORA_DAMMV2_PUBKEY, &[0x41, 0x4b, 0x3f, 0x4c, 0xeb, 0x5b, 0x5b, 0x88], 0, 25),
         ].concat()
     }
 }
