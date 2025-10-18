@@ -7,7 +7,7 @@ pub const LEADER_GROUP_SIZE: u64 = 4; // slots per leader group
 
 pub async fn get_events(conn: Pool, start_slot: u64, end_slot: u64) -> (Vec<SwapV2>, Vec<TransferV2>, Vec<TransactionV2>) {
     let conn = &mut conn.get_conn().unwrap();
-    let res: Vec<Row> = conn.exec("select id, event_type, slot, inclusion_order, ix_index, inner_ix_index, authority, outer_program, program, amm, input_mint, output_mint, input_amount, output_amount, input_ata, output_ata, input_inner_ix_index, output_inner_ix_index from events where slot between ? and ?", vec![start_slot, end_slot]).unwrap();
+    let res: Vec<Row> = conn.exec("select id, event_type, slot, inclusion_order, ix_index, inner_ix_index, authority, outer_program, program, amm, input_mint, output_mint, input_amount, output_amount, input_ata, output_ata, input_inner_ix_index, output_inner_ix_index from event_view where slot between ? and ?", vec![start_slot, end_slot]).unwrap();
     let mut swaps = vec![];
     let mut transfers = vec![];
     let mut txs = vec![];
