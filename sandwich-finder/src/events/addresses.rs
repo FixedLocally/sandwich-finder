@@ -40,6 +40,9 @@ pub const JUP_V6_PROGRAM_ID: Pubkey = Pubkey::from_str_const("JUP6LkbZbjS1jKKwap
 pub const JUP_V4_PROGRAM_ID: Pubkey = Pubkey::from_str_const("JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB");
 pub const DFLOW_PROGRAM_ID: Pubkey = Pubkey::from_str_const("DF1ow4tspfHX9JwWJsAb9epbkA8hmpSEAtxXy1V27QBH");
 
+pub const DONT_FRONT_START: [u8; 32] = [10,241,195,67,33,136,202,58,99,81,53,161,58,24,149,26,206,189,41,230,172,45,174,103,255,219,6,215,64,0,0,0];
+pub const DONT_FRONT_END: [u8; 32]   = [10,241,195,67,33,136,202,58,99,82,11,83,236,186,243,27,60,23,98,46,152,130,58,175,28,197,174,53,128,0,0,0];
+
 pub fn is_known_aggregator(program_id: &Pubkey) -> bool {
     matches!(
         *program_id,

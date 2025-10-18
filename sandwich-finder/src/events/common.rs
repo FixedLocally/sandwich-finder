@@ -70,6 +70,17 @@ impl Inserter {
         }
     }
 
+    fn get_by_option(&self, address: &Option<Arc<str>>, tag: i32) -> Option<u32> {
+        address.clone().map(|p| self.address_lookup_table.get(&p).map(|v| *v.value()).unwrap_or_else(|| {
+            eprintln!("Address not found in lookup table: {:?} tag {tag}", address);
+            0
+        }))
+    }
+
+    fn get(&self, address: Arc<str>, tag: i32) -> u32 {
+        self.get_by_option(&Some(address), tag).unwrap()
+    }
+
     fn to_event_vec(&self, event: &Event) -> Vec<Value> {
         match event {
             Event::Swap(swap) => vec![
@@ -78,16 +89,16 @@ impl Inserter {
                 Value::from(swap.inclusion_order()),
                 Value::from(swap.ix_index()),
                 Value::from(swap.inner_ix_index()),
-                Value::from(self.address_lookup_table.get(swap.authority()).map(|v| *v.value()).unwrap()),
-                Value::from(swap.outer_program().clone().map(|p| self.address_lookup_table.get(&p).map(|v| *v.value()).unwrap())),
-                Value::from(self.address_lookup_table.get(swap.program()).map(|v| *v.value()).unwrap()),
-                Value::from(self.address_lookup_table.get(swap.amm()).map(|v| *v.value()).unwrap()),
-                Value::from(self.address_lookup_table.get(swap.input_mint()).map(|v| *v.value()).unwrap()),
-                Value::from(self.address_lookup_table.get(swap.output_mint()).map(|v| *v.value()).unwrap()),
+                Value::from(self.get(swap.authority().clone(), 1)),
+                Value::from(self.get_by_option(swap.outer_program(), 2)),
+                Value::from(self.get(swap.program().clone(), 3)),
+                Value::from(self.get(swap.amm().clone(), 4)),
+                Value::from(self.get(swap.input_mint().clone(), 5)),
+                Value::from(self.get(swap.output_mint().clone(), 6)),
                 Value::from(swap.input_amount()),
                 Value::from(swap.output_amount()),
-                Value::from(self.address_lookup_table.get(swap.input_ata()).map(|v| *v.value()).unwrap()),
-                Value::from(self.address_lookup_table.get(swap.output_ata()).map(|v| *v.value()).unwrap()),
+                Value::from(self.get(swap.input_ata().clone(), 7)),
+                Value::from(self.get(swap.output_ata().clone(), 8)),
                 Value::from(swap.input_inner_ix_index()),
                 Value::from(swap.output_inner_ix_index()),
             ],
@@ -97,16 +108,16 @@ impl Inserter {
                 Value::from(transfer.inclusion_order()),
                 Value::from(transfer.ix_index()),
                 Value::from(transfer.inner_ix_index()),
-                Value::from(self.address_lookup_table.get(transfer.authority()).map(|v| *v.value()).unwrap()),
+                Value::from(self.get(transfer.authority().clone(), 9)),
                 Value::from(transfer.outer_program().clone().map(|p| self.address_lookup_table.get(&p).map(|v| *v.value()).unwrap())),
-                Value::from(self.address_lookup_table.get(transfer.program()).map(|v| *v.value()).unwrap()),
+                Value::from(self.get(transfer.program().clone(), 10)),
                 Value::from(None::<String>), // amm is None for transfer
-                Value::from(self.address_lookup_table.get(transfer.mint()).map(|v| *v.value()).unwrap()),
-                Value::from(self.address_lookup_table.get(transfer.mint()).map(|v| *v.value()).unwrap()),
+                Value::from(self.get(transfer.mint().clone(), 11)),
+                Value::from(self.get(transfer.mint().clone(), 12)),
                 Value::from(transfer.amount()),
                 Value::from(transfer.amount()),
-                Value::from(self.address_lookup_table.get(transfer.input_ata()).map(|v| *v.value()).unwrap()),
-                Value::from(self.address_lookup_table.get(transfer.output_ata()).map(|v| *v.value()).unwrap()),
+                Value::from(self.get(transfer.input_ata().clone(), 13)),
+                Value::from(self.get(transfer.output_ata().clone(), 14)),
                 Value::from(transfer.inner_ix_index()),
                 Value::from(transfer.inner_ix_index()),
             ],
@@ -122,6 +133,7 @@ impl Inserter {
                 Value::from(tx.sig()),
                 Value::from(tx.fee()),
                 Value::from(tx.cu_actual()),
+                Value::from(tx.dont_front()),
             ],
             _ => vec![], // They belong to another table
         }
@@ -188,7 +200,7 @@ impl Inserter {
         let event_params: Vec<_> = event_vecs.iter().flat_map(|e| e).collect();
         let event_stmt = format!("insert into events_with_id (event_type, slot, inclusion_order, ix_index, inner_ix_index, authority_id, outer_program_id, program_id, amm_id, input_mint_id, output_mint_id, input_amount, output_amount, input_ata_id, output_ata_id, input_inner_ix_index, output_inner_ix_index) values {}", "(?, ?, ?, ?, ifnull(?, -1), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ifnull(?, -1), ifnull(?, -1)),".repeat(event_params.len() / 17));
         let tx_params: Vec<_> = events.iter().flat_map(|e| self.to_tx_vec(e)).collect();
-        let tx_stmt = format!("insert into transactions (slot, inclusion_order, sig, fee, cu_actual) values {}", "(?, ?, ?, ?, ?),".repeat(tx_params.len() / 5));
+        let tx_stmt = format!("insert into transactions (slot, inclusion_order, sig, fee, cu_actual, dont_front) values {}", "(?, ?, ?, ?, ?, ?),".repeat(tx_params.len() / 6));
         if !event_params.is_empty() {
             tx.exec_drop(event_stmt.trim_end_matches(","), event_params).unwrap();
         }

@@ -11,16 +11,18 @@ pub struct TransactionV2 {
     sig: Arc<str>,
     fee: u64,
     cu_actual: u64,
+    dont_front: bool
 }
 
 impl TransactionV2 {
-    pub fn new(slot: u64, inclusion_order: u32, sig: Arc<str>, fee: u64, cu_actual: u64) -> Self {
+    pub fn new(slot: u64, inclusion_order: u32, sig: Arc<str>, fee: u64, cu_actual: u64, dont_front: bool) -> Self {
         Self {
             slot,
             inclusion_order,
             sig,
             fee,
             cu_actual,
+            dont_front,
         }
     }
 }

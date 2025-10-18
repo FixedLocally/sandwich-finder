@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 use yellowstone_grpc_client::GeyserGrpcBuilder;
 use yellowstone_grpc_proto::{geyser::{subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest, SubscribeRequestFilterAccounts, SubscribeRequestFilterBlocks, SubscribeRequestPing}, tonic::transport::Endpoint};
 
-use crate::{events::{swap::SwapV2, swaps::{apesu::ApesuSwapFinder, aqua::AquaSwapFinder, discoverer::Discoverer, fluxbeam::FluxbeamSwapFinder, goonfi::GoonFiSwapFinder, humidifi::HumidiFiSwapFinder, jup_order_engine::JupOrderEngineSwapFinder, jup_perps::JupPerpsSwapFinder, lifinity_v2::LifinityV2SwapFinder, meteora::MeteoraSwapFinder, meteora_damm_v2::MeteoraDammV2Finder, meteora_dbc::MeteoraDBCSwapFinder, meteora_dlmm::MeteoraDLMMSwapFinder, onedex::OneDexSwapFinder, openbook_v2::OpenbookV2SwapFinder, pancake_swap::PancakeSwapSwapFinder, pumpamm::PumpAmmSwapFinder, pumpfun::PumpFunSwapFinder, raydium_cl::RaydiumCLSwapFinder, raydium_lp::RaydiumLPSwapFinder, raydium_v4::RaydiumV4SwapFinder, raydium_v5::RaydiumV5SwapFinder, saros_dlmm::SarosDLMMSwapFinder, solfi::SolFiSwapFinder, stabble_weighted::StabbleWeightedSwapFinder, sugar::SugarSwapFinder, sv2e::Sv2eSwapFinder, swap_finder_ext::SwapFinderExt as _, tessv::TessVSwapFinder, whirlpool::{WhirlpoolSwapFinder, WhirlpoolTwoHopSwapFinder1, WhirlpoolTwoHopSwapFinder2, WhirlpoolTwoHopSwapV2Finder1, WhirlpoolTwoHopSwapV2Finder2}, zerofi::ZeroFiSwapFinder}, transaction::TransactionV2, transfer::TransferV2, transfers::{stake::StakeProgramTransferfinder, system::SystemProgramTransferfinder, token::TokenProgramTransferFinder, transfer_finder_ext::TransferFinderExt as _}}, utils::{decompile_tx, pubkey_from_slice}};
+use crate::{events::{addresses::{DONT_FRONT_END, DONT_FRONT_START}, swap::SwapV2, swaps::{apesu::ApesuSwapFinder, aqua::AquaSwapFinder, discoverer::Discoverer, fluxbeam::FluxbeamSwapFinder, goonfi::GoonFiSwapFinder, humidifi::HumidiFiSwapFinder, jup_order_engine::JupOrderEngineSwapFinder, jup_perps::JupPerpsSwapFinder, lifinity_v2::LifinityV2SwapFinder, meteora::MeteoraSwapFinder, meteora_damm_v2::MeteoraDammV2Finder, meteora_dbc::MeteoraDBCSwapFinder, meteora_dlmm::MeteoraDLMMSwapFinder, onedex::OneDexSwapFinder, openbook_v2::OpenbookV2SwapFinder, pancake_swap::PancakeSwapSwapFinder, pumpamm::PumpAmmSwapFinder, pumpfun::PumpFunSwapFinder, raydium_cl::RaydiumCLSwapFinder, raydium_lp::RaydiumLPSwapFinder, raydium_v4::RaydiumV4SwapFinder, raydium_v5::RaydiumV5SwapFinder, saros_dlmm::SarosDLMMSwapFinder, solfi::SolFiSwapFinder, stabble_weighted::StabbleWeightedSwapFinder, sugar::SugarSwapFinder, sv2e::Sv2eSwapFinder, swap_finder_ext::SwapFinderExt as _, tessv::TessVSwapFinder, whirlpool::{WhirlpoolSwapFinder, WhirlpoolTwoHopSwapFinder1, WhirlpoolTwoHopSwapFinder2, WhirlpoolTwoHopSwapV2Finder1, WhirlpoolTwoHopSwapV2Finder2}, zerofi::ZeroFiSwapFinder}, transaction::TransactionV2, transfer::TransferV2, transfers::{stake::StakeProgramTransferfinder, system::SystemProgramTransferfinder, token::TokenProgramTransferFinder, transfer_finder_ext::TransferFinderExt as _}}, utils::{decompile_tx, pubkey_from_slice}};
 
 
 #[derive(Clone, Debug, Serialize)]
@@ -143,6 +143,7 @@ pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receive
                         // println!("found {} transfers in slot {} tx {}", transfers.len(), slot, bs58::encode(&tx.0.signature).into_string());
                         // println!("{:?}", swaps);
                         if tx_events.len() > 0 {
+                            let dont_front = tx.2.iter().any(|k| k.to_bytes() >= DONT_FRONT_START && k.to_bytes() < DONT_FRONT_END);
                             if let Some(meta) = &tx.0.meta {
                                 tx_events.push(Event::Transaction(TransactionV2::new(
                                     slot,
@@ -150,6 +151,7 @@ pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receive
                                     bs58::encode(&tx.0.signature).into_string().into(),
                                     meta.fee,
                                     meta.compute_units_consumed.unwrap_or(0),
+                                    dont_front,
                                 )));
                             } else {
                                 tx_events.push(Event::Transaction(TransactionV2::new(
@@ -158,6 +160,7 @@ pub fn start_event_processor(grpc_url: String, rpc_url: String) -> mpsc::Receive
                                     bs58::encode(&tx.0.signature).into_string().into(),
                                     0,
                                     0,
+                                    dont_front,
                                 )));
                             }
                         }

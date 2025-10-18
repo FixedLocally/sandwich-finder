@@ -43,14 +43,15 @@ pub async fn get_events(conn: Pool, start_slot: u64, end_slot: u64) -> (Vec<Swap
             _ => {},
         }
     }
-    let res: Vec<Row> = conn.exec("select slot, inclusion_order, sig, fee, cu_actual from transactions where slot between ? and ?", vec![start_slot, end_slot]).unwrap();
+    let res: Vec<Row> = conn.exec("select slot, inclusion_order, sig, fee, cu_actual, ifnull(dont_front, 0) as dont_front from transactions where slot between ? and ?", vec![start_slot, end_slot]).unwrap();
     for row in res {
         let slot: u64 = row.get("slot").unwrap();
         let inclusion_order: u32 = row.get("inclusion_order").unwrap();
         let sig: String = row.get("sig").unwrap();
         let fee: u64 = row.get("fee").unwrap();
         let cu_actual: u64 = row.get("cu_actual").unwrap();
-        txs.push(TransactionV2::new(slot, inclusion_order, sig.into(), fee, cu_actual));
+        let dont_front: bool = row.get("dont_front").unwrap();
+        txs.push(TransactionV2::new(slot, inclusion_order, sig.into(), fee, cu_actual, dont_front));
     }
 
     // Filter out swap leg transfers
