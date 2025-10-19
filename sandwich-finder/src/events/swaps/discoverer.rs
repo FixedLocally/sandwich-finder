@@ -5,6 +5,13 @@ use yellowstone_grpc_proto::prelude::{InnerInstruction, InnerInstructions, Trans
 
 use crate::events::{swap::{SwapFinder, SwapV2}, swaps::{private::Sealed, utils::token_transferred_inner}};
 
+const BLACKLISTED_COMBINATIONS: &[(Pubkey, &[u8], usize)] = &[ // program, discriminant, offset
+    (Pubkey::from_str_const("DDZDcYdQFEMwcu2Mwo75yGFjJ1mUQyyXLWzhZLEVFcei"), &[], 0), // appears to be something that does smth with the audio token
+    (Pubkey::from_str_const("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"), &[], 0), // metaplex
+    (Pubkey::from_str_const("Eo7WjKq67rjJQSZxS6z3YkapzY3eMj6Xy8X5EQVn5UaB"), &[0xa9, 0x20, 0x4f, 0x89, 0x88, 0xe8, 0x46, 0x89], 0), // meteora claim fees
+    (Pubkey::from_str_const("dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN"), &[0x9c, 0xa9, 0xe6, 0x67, 0x35, 0xe4, 0x50, 0x40], 0), // dbc migrate
+];
+
 impl Sealed for Discoverer {}
 
 pub struct Discoverer {}
@@ -41,6 +48,15 @@ impl SwapFinder for Discoverer {
                 let mut transfer_count = 0;
                 let mut authorities = HashSet::new();
                 let mut mints = HashSet::new();
+                for comb in BLACKLISTED_COMBINATIONS {
+                    if ix.program_id == comb.0 {
+                        if ix.data.len() >= comb.2 + comb.1.len() {
+                            if &ix.data[comb.2..comb.2 + comb.1.len()] == comb.1 {
+                                return vec![];
+                            }
+                        }
+                    }
+                }
                 for inner_ix in &inner_ixs.instructions {
                     if let Some((_from, _to, _auth, mint, _amount)) = token_transferred_inner(&inner_ix, &account_keys, &meta) {
                         transfer_count += 1;
