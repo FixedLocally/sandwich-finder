@@ -19,9 +19,9 @@ async fn main() {
     let pool = Pool::new(mysql_url.as_str()).unwrap();
     let mut conn = pool.get_conn().unwrap();
     let leader_set: HashSet<_> = leader_schedule.keys().collect();
-    let stmt = format!("insert ignore into leader_mapping (leader) values {}", leader_set.iter().map(|_| "(?)").collect::<Vec<_>>().join(","));
+    let stmt = format!("insert ignore into address_lookup_table (address) values {}", leader_set.iter().map(|_| "(?)").collect::<Vec<_>>().join(","));
     conn.exec_drop(stmt, leader_set.iter().collect::<Vec<_>>()).unwrap();
-    let stmt = format!("select id, leader from leader_mapping where leader in ({})", leader_set.iter().map(|_| "(?)").collect::<Vec<_>>().join(","));
+    let stmt = format!("select id, address from address_lookup_table where address in ({})", leader_set.iter().map(|_| "(?)").collect::<Vec<_>>().join(","));
     let leader_map: HashMap<String, u64> = HashMap::from_iter(conn.exec_map(stmt, leader_set.iter().collect::<Vec<_>>(), |(id, leader)| (leader, id)).unwrap());
     println!("{:#?}", leader_map);
 
