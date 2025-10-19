@@ -10,11 +10,13 @@ pub struct PumpAmmSwapFinder {}
 /// Pump.fun have two variants:
 /// 1. buy [0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea]
 /// 2. sell [0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad]
+/// 3. buyExactQuoteIn [0xc6, 0x2e, 0x15, 0x52, 0xb4, 0xd9, 0xe8, 0x70]
 /// In/out amounts follows the discriminant, with the first one being exact and the other being the worst acceptable value.
 /// Swap direction is determined instruction's name.
 impl PumpAmmSwapFinder {
     fn user_in_out_index(ix_data: &[u8]) -> (usize, usize) {
-        if ix_data.starts_with(&[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea]) {
+        if ix_data.starts_with(&[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea]) ||
+           ix_data.starts_with(&[0xc6, 0x2e, 0x15, 0x52, 0xb4, 0xd9, 0xe8, 0x70]) {
             // buy
             (6, 5)
         } else {
@@ -81,6 +83,8 @@ impl SwapFinder for PumpAmmSwapFinder {
             Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &PDF2_PUBKEY, &[0x66, 0x06, 0x3d, 0x12, 0x01, 0xda, 0xeb, 0xea], 0, 24),
             // sell
             Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &PDF2_PUBKEY, &[0x33, 0xe6, 0x85, 0xa4, 0x01, 0x7f, 0x83, 0xad], 0, 24),
+            // buyExactQuoteIn
+            Self::find_swaps_generic(ix, inner_ixs, account_keys, meta, &PDF2_PUBKEY, &[0xc6, 0x2e, 0x15, 0x52, 0xb4, 0xd9, 0xe8, 0x70], 0, 24),
         ].concat()
     }
 }
