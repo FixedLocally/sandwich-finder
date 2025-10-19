@@ -10,6 +10,7 @@ pub mod aqua;
 pub mod clearpool;
 pub mod dooar;
 pub mod fluxbeam;
+pub mod fusionamm;
 pub mod goonfi;
 pub mod heaven;
 pub mod humidifi;
