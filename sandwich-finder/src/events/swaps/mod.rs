@@ -7,6 +7,7 @@ pub mod discoverer;
 
 pub mod apesu;
 pub mod aqua;
+pub mod clearpool;
 pub mod dooar;
 pub mod fluxbeam;
 pub mod goonfi;
