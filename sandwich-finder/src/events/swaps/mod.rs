@@ -5,6 +5,7 @@ pub mod utils;
 
 pub mod discoverer;
 
+pub mod alpha;
 pub mod apesu;
 pub mod aqua;
 pub mod clearpool;
