@@ -34,6 +34,7 @@ pub const PUMPUP_PUBKEY: Pubkey = Pubkey::from_str_const("PdMDrKEMaX8q7CCJb7NvUC
 pub const CLEARPOOL_PUBKEY: Pubkey = Pubkey::from_str_const("C1ear1po7kcLBZiiArGMXPhGnjRZ8KxkqQ8EEskzHWmc");
 pub const FUSIONAMM_PUBKEY: Pubkey = Pubkey::from_str_const("fUSioN9YKKSa3CUC2YUc4tPkHJ5Y6XW1yz8y6F7qWz9");
 pub const ALPHA_PUBKEY: Pubkey = Pubkey::from_str_const("ALPHAQmeA7bjrVuccPsYPiCvsi428SNwte66Srvs4pHA");
+pub const LIMO_PUBKEY: Pubkey = Pubkey::from_str_const("LiMoM9rMhrdYrfzUCxQppvxCSG1FcrUK9G8uLq4A1GF");
 
 pub const TOKEN_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 pub const TOKEN_2022_PROGRAM_ID: Pubkey = Pubkey::from_str_const("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
